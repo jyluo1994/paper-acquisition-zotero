@@ -1,0 +1,52 @@
+{
+  "profiles": {
+    "pumc-webvpn": {
+      "label": "PUMC academic proxy via Chrome ZeroOmega kokonur",
+      "loginUrl": "https://doi.org/",
+      "cdpPort": 9222,
+      "browserURL": "http://127.0.0.1:9222",
+      "browserUserDataDir": "~/Library/Application Support/Google/Chrome",
+      "chromeProfileDirectory": "Default",
+      "zeroOmegaProfile": "kokonur",
+      "notes": "Uses the user's existing Chrome ZeroOmega profile named kokonur. No proxy credentials are stored here."
+    },
+    "pumc-kokonur-zeroomega": {
+      "label": "PUMC academic proxy via Chrome ZeroOmega kokonur",
+      "loginUrl": "https://doi.org/",
+      "cdpPort": 9222,
+      "browserURL": "http://127.0.0.1:9222",
+      "browserUserDataDir": "~/Library/Application Support/Google/Chrome",
+      "chromeProfileDirectory": "Default",
+      "zeroOmegaProfile": "kokonur",
+      "notes": "Alias for pumc-webvpn. Start Chrome with this profile and select kokonur in ZeroOmega before acquisition."
+    },
+    "pumc-webvpn-legacy": {
+      "label": "PUMC/CAMS WebVPN legacy entrance",
+      "loginUrl": "https://vpn.cams.cn/",
+      "cdpPort": 9222,
+      "profileDir": "pumc-webvpn-legacy",
+      "notes": "Alternate public WebVPN entrance."
+    },
+    "sysu-carsi": {
+      "label": "SYSU CARSI",
+      "loginUrl": "https://www.carsi.edu.cn/",
+      "cdpPort": 9223,
+      "profileDir": "sysu-carsi",
+      "notes": "Use CARSI user login and choose 中山大学."
+    },
+    "sysu-portal": {
+      "label": "SYSU portal academic resources",
+      "loginUrl": "https://portal.sysu.edu.cn/",
+      "cdpPort": 9223,
+      "profileDir": "sysu-portal",
+      "notes": "SYSU unified portal includes academic resource access."
+    },
+    "sysu-vpn": {
+      "label": "SYSU VPN",
+      "loginUrl": "https://inc.sysu.edu.cn/service/vpn",
+      "cdpPort": 9223,
+      "profileDir": "sysu-vpn",
+      "notes": "SYSU VPN information page; use when tunnel-based campus-network access is required."
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "Paper Acquisition Zotero",
+  "version": "0.2.2",
+  "description": "Acquire PDFs for selected Zotero items through a local paper-acquisition service.",
+  "homepage_url": "https://github.com/jyluo1994/paper-acquisition-zotero",
+  "applications": {
+    "zotero": {
+      "id": "paper-acquisition-anti-scrape@jyluo1994.github.io",
+      "update_url": "https://raw.githubusercontent.com/jyluo1994/paper-acquisition-zotero/main/zotero-plugin/updates.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "10.99.99"
+    }
+  }
+}

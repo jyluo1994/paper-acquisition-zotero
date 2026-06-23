@@ -1,0 +1,15 @@
+{
+  "name": "paper-acquisition-zotero-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local service shim for the Paper Acquisition Zotero plugin.",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "check": "node --check src/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
+

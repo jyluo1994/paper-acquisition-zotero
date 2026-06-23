@@ -1,0 +1,22 @@
+@namespace html url("http://www.w3.org/1999/xhtml");
+
+#paper-acquisition-preferences .paa-form-row {
+  display: grid;
+  grid-template-columns: 160px minmax(260px, 1fr);
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0;
+}
+
+#paper-acquisition-preferences .paa-form-row.compact {
+  grid-template-columns: 210px 160px;
+}
+
+#paper-acquisition-preferences html|input {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+#paper-acquisition-preferences .paa-status {
+  margin-top: 8px;
+}

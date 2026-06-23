@@ -1,0 +1,98 @@
+<vbox id="paper-acquisition-preferences"
+      onload="PaperAcquisitionPreferences.init()"
+      xmlns:html="http://www.w3.org/1999/xhtml">
+  <vbox class="main-section">
+    <groupbox aria-labelledby="paper-acquisition-service-title">
+      <label><html:h2 id="paper-acquisition-service-title">Local Service</html:h2></label>
+      <description>
+        The Zotero plugin talks to a local service bound to 127.0.0.1. Cookies and institutional browser sessions stay outside Zotero.
+      </description>
+      <separator class="thin"/>
+      <html:div class="paa-form-row">
+        <html:label for="paa-service-url">Service URL</html:label>
+        <html:input id="paa-service-url"
+                    type="text"
+                    preference="extensions.paperAcquisitionAntiScrape.serviceURL"/>
+      </html:div>
+      <checkbox label="Start the local service automatically when needed"
+                preference="extensions.paperAcquisitionAntiScrape.autoStartService"
+                native="true"/>
+      <html:div class="paa-form-row">
+        <html:label for="paa-service-working-directory">Service directory</html:label>
+        <html:input id="paa-service-working-directory"
+                    type="text"
+                    placeholder="/path/to/paper-acquisition-zotero"
+                    preference="extensions.paperAcquisitionAntiScrape.serviceWorkingDirectory"/>
+      </html:div>
+      <html:div class="paa-form-row">
+        <html:label for="paa-service-start-command">Start command</html:label>
+        <html:input id="paa-service-start-command"
+                    type="text"
+                    preference="extensions.paperAcquisitionAntiScrape.serviceStartCommand"/>
+      </html:div>
+      <html:div class="paa-form-row">
+        <html:label for="paa-default-profile">Default profile</html:label>
+        <html:input id="paa-default-profile"
+                    type="text"
+                    preference="extensions.paperAcquisitionAntiScrape.defaultProfile"/>
+      </html:div>
+      <hbox class="preferences-button-group">
+        <button id="paa-test-service" label="Test service"/>
+        <button id="paa-start-service" label="Start service"/>
+        <button id="paa-refresh-login" label="Refresh login profile"/>
+      </hbox>
+      <description id="paa-service-status" class="paa-status"/>
+    </groupbox>
+
+    <groupbox aria-labelledby="paper-acquisition-manual-title">
+      <label><html:h2 id="paper-acquisition-manual-title">Manual Acquisition</html:h2></label>
+      <checkbox label="Skip items that already have a PDF attachment"
+                preference="extensions.paperAcquisitionAntiScrape.skipExistingPDF"
+                native="true"/>
+      <checkbox label="Show a progress window while acquiring PDFs"
+                preference="extensions.paperAcquisitionAntiScrape.showProgressWindow"
+                native="true"/>
+    </groupbox>
+
+    <groupbox aria-labelledby="paper-acquisition-auto-title">
+      <label><html:h2 id="paper-acquisition-auto-title">Automatic Acquisition</html:h2></label>
+      <checkbox label="Automatically acquire PDFs for newly added regular items"
+                preference="extensions.paperAcquisitionAntiScrape.autoAcquireOnNewItems"
+                native="true"/>
+      <description>
+        Automatic acquisition is queued and delayed, then checks again for an existing PDF before it starts. This reduces duplicate work when another Zotero feature or plugin is already fetching files.
+      </description>
+      <html:div class="paa-form-row compact">
+        <html:label for="paa-auto-delay">Auto delay (milliseconds)</html:label>
+        <html:input id="paa-auto-delay"
+                    type="number"
+                    min="1000"
+                    step="1000"
+                    preference="extensions.paperAcquisitionAntiScrape.autoAcquireDelayMS"/>
+      </html:div>
+      <checkbox label="Pause automatic acquisition while Zotero's built-in associated-file download is enabled"
+                preference="extensions.paperAcquisitionAntiScrape.avoidNativeDownloadConflicts"
+                native="true"/>
+    </groupbox>
+
+    <groupbox aria-labelledby="paper-acquisition-advanced-title">
+      <label><html:h2 id="paper-acquisition-advanced-title">Advanced</html:h2></label>
+      <html:div class="paa-form-row compact">
+        <html:label for="paa-poll-interval">Poll interval (milliseconds)</html:label>
+        <html:input id="paa-poll-interval"
+                    type="number"
+                    min="500"
+                    step="500"
+                    preference="extensions.paperAcquisitionAntiScrape.pollIntervalMS"/>
+      </html:div>
+      <html:div class="paa-form-row compact">
+        <html:label for="paa-job-timeout">Job timeout (milliseconds)</html:label>
+        <html:input id="paa-job-timeout"
+                    type="number"
+                    min="30000"
+                    step="30000"
+                    preference="extensions.paperAcquisitionAntiScrape.jobTimeoutMS"/>
+      </html:div>
+    </groupbox>
+  </vbox>
+</vbox>

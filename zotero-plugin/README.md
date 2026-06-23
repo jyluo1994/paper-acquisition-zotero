@@ -63,11 +63,15 @@ http://127.0.0.1:24372
 
 The `Acquisition proxy` setting is optional. Leave it empty to disable it, or
 set a local proxy such as `127.0.0.1:7890`. It applies only to this plugin's PDF
-acquisition flow and does not change system proxy settings. Prefer a localhost
-proxy without embedded credentials.
+acquisition flow and does not change system proxy settings. Proxy
+username/password are optional and are stored as Zotero preferences.
 
 Institution-specific profile names, login URLs, proxy notes, and browser
 profile details should live in the local service configuration rather than in
 public docs.
+
+Use `Refresh login profile` to open the acquisition browser profile and log in
+to publisher, institutional, WebVPN, or SSO pages. Chrome ZeroOmega data cannot
+be imported into Zotero because Zotero cannot run Chrome extensions.
 
 Automatic acquisition is disabled by default. If enabled, it waits before processing new items and checks again for existing PDF attachments, so Zotero's own associated-file download and other plugins get a chance to finish first.

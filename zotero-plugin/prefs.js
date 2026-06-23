@@ -4,6 +4,8 @@ pref("extensions.paperAcquisitionAntiScrape.serviceWorkingDirectory", "");
 pref("extensions.paperAcquisitionAntiScrape.serviceStartCommand", "npm start");
 pref("extensions.paperAcquisitionAntiScrape.defaultProfile", "auto");
 pref("extensions.paperAcquisitionAntiScrape.proxyServer", "");
+pref("extensions.paperAcquisitionAntiScrape.proxyUsername", "");
+pref("extensions.paperAcquisitionAntiScrape.proxyPassword", "");
 pref("extensions.paperAcquisitionAntiScrape.skipExistingPDF", true);
 pref("extensions.paperAcquisitionAntiScrape.showProgressWindow", true);
 pref("extensions.paperAcquisitionAntiScrape.autoAcquireOnNewItems", false);

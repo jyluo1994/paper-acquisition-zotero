@@ -20,6 +20,7 @@
  *   CHROME_PROFILE_DIRECTORY Chrome profile directory（例如 Default）
  *   PAA_PROXY_SERVER / CHROME_PROXY_SERVER 仅用于本次浏览器兜底获取的代理
  *   PAA_PROXY_BYPASS_LIST / CHROME_PROXY_BYPASS_LIST Chrome 代理绕过列表
+ *   PAA_PROXY_USERNAME / PAA_PROXY_PASSWORD HTTP proxy authentication
  *   CDP_PORT        远程调试端口（默认 9222）
  */
 
@@ -56,6 +57,7 @@ function inferProvider(url) {
 async function connectBrowser() {
   const proxyServer = normalizeProxyServer(process.env.PAA_PROXY_SERVER || process.env.CHROME_PROXY_SERVER || "");
   const proxyBypassList = String(process.env.PAA_PROXY_BYPASS_LIST || process.env.CHROME_PROXY_BYPASS_LIST || "").trim();
+  const proxyAuth = proxyAuthCredentials();
 
   // 先尝试连接已有浏览器
   try {
@@ -63,6 +65,9 @@ async function connectBrowser() {
     console.error(`[connect] Connected to existing browser at ${BROWSER_URL}`);
     if (proxyServer) {
       console.error("[connect] Proxy setting is only applied when launching a new browser.");
+    }
+    if (proxyAuth) {
+      console.error("[connect] Proxy authentication will be applied to new pages.");
     }
     return browser;
   } catch {
@@ -114,6 +119,22 @@ async function connectBrowser() {
   );
 }
 
+function proxyAuthCredentials() {
+  const username = String(process.env.PAA_PROXY_USERNAME || process.env.CHROME_PROXY_USERNAME || "");
+  const password = String(process.env.PAA_PROXY_PASSWORD || process.env.CHROME_PROXY_PASSWORD || "");
+  if (!username && !password) return null;
+  return { username, password };
+}
+
+async function newPage(browser) {
+  const page = await browser.newPage();
+  const proxyAuth = proxyAuthCredentials();
+  if (proxyAuth) {
+    await page.authenticate(proxyAuth);
+  }
+  return page;
+}
+
 function normalizeProxyServer(value) {
   const proxy = String(value || "").trim();
   if (!proxy) return "";
@@ -126,7 +147,7 @@ function normalizeProxyServer(value) {
 }
 
 async function resolveDoi(browser, doi) {
-  const page = await browser.newPage();
+  const page = await newPage(browser);
   page.setDefaultNavigationTimeout(120000);
   await page.goto(`https://doi.org/${doi}`, { waitUntil: "domcontentloaded" });
   await sleep(5000);
@@ -238,7 +259,7 @@ async function main() {
     const articleUrl = doi ? await resolveDoi(browser, doi) : input;
     const provider = inferProvider(articleUrl);
 
-    page = await browser.newPage();
+    page = await newPage(browser);
     await page.setDefaultNavigationTimeout(120000);
     await page.goto(articleUrl, { waitUntil: "domcontentloaded" });
     await sleep(6000);

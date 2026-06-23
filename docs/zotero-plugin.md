@@ -44,13 +44,15 @@ Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
 Default profile: your-local-profile
 Acquisition proxy: 127.0.0.1:7890
+Proxy username: optional
+Proxy password: optional
 ```
 
 Then click `Start service`, or enable `Start the local service automatically when needed`.
 
 `Acquisition proxy` is optional. It is scoped to this plugin's PDF acquisition
-flow and does not change system proxy settings. Prefer a localhost proxy without
-embedded credentials.
+flow and does not change system proxy settings. Proxy username/password are
+stored as Zotero preferences.
 
 Manual terminal startup still works:
 
@@ -143,6 +145,15 @@ institution-specific profile names, login URLs, proxy notes, and browser profile
 details in `service/profiles.json`, and do not export or commit browser profile
 directories.
 
+Use `Refresh login profile` to open the acquisition browser profile and log in
+to publisher, institutional, WebVPN, or SSO pages. These cookies are stored in
+the acquisition browser profile, not in Zotero item data.
+
+Chrome ZeroOmega data cannot be imported into Zotero because Zotero cannot run
+Chrome extensions. If a ZeroOmega node uses proxy authentication, copy the
+proxy host, port, username, and password into the plugin settings or local
+`service/profiles.json`.
+
 ## Automatic Acquisition
 
 Automatic acquisition is off by default. Enable it in the plugin settings only after confirming the manual right-click flow works.
@@ -164,11 +175,13 @@ socks5://127.0.0.1:1080
 ```
 
 The service converts bare `host:port` values to `http://host:port` before
-launching Chrome. This does not change system proxy settings.
+launching Chrome. This does not change system proxy settings. HTTP proxy
+username/password are passed to the browser fallback with Puppeteer page
+authentication.
 
 ## Security Boundary
 
-The Zotero plugin must not store raw cookies, SSO tokens, or request headers. Prefer a localhost proxy without embedded credentials; a proxy URL with `user:password@` would be stored as a normal Zotero preference. Zotero receives only:
+The Zotero plugin must not store raw cookies, SSO tokens, or request headers. Proxy username/password are stored as normal Zotero preferences if configured. Zotero receives only:
 
 - item metadata
 - job status

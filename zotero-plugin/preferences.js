@@ -56,13 +56,22 @@ var PaperAcquisitionPreferences = {
     return String(this.pref("proxyServer", "") || "").trim();
   },
 
+  proxyUsername() {
+    return String(this.pref("proxyUsername", "") || "").trim();
+  },
+
+  proxyPassword() {
+    return String(this.pref("proxyPassword", "") || "");
+  },
+
   async testService() {
     this.setStatus("Checking local service...");
     const response = await fetch(`${this.serviceURL()}/health`);
     const data = await this.parseResponse(response);
     const profiles = Array.isArray(data.profiles) ? data.profiles.join(", ") : "unknown";
     const proxy = this.proxyServer() ? "plugin proxy configured" : "plugin proxy off";
-    this.setStatus(`Service OK. Download dir: ${data.downloadDir || "unknown"}. Profiles: ${profiles}. ${proxy}.`);
+    const auth = this.proxyUsername() ? "proxy auth configured" : "proxy auth off";
+    this.setStatus(`Service OK. Download dir: ${data.downloadDir || "unknown"}. Profiles: ${profiles}. ${proxy}. ${auth}.`);
   },
 
   async refreshLoginProfile() {
@@ -79,12 +88,15 @@ var PaperAcquisitionPreferences = {
     });
     const data = await this.parseResponse(response);
     const proxy = data.proxyServer ? ` Proxy: ${data.proxyServer}.` : "";
-    this.setStatus(`Opened ${data.label || data.profile || profile}. CDP: ${data.cdpURL || "unknown"}.${proxy}`);
+    const auth = data.proxyAuthConfigured ? " Proxy auth configured." : "";
+    this.setStatus(`Opened ${data.label || data.profile || profile}. CDP: ${data.cdpURL || "unknown"}.${proxy}${auth}`);
   },
 
   requestOptions() {
     return {
-      proxyServer: this.proxyServer()
+      proxyServer: this.proxyServer(),
+      proxyUsername: this.proxyUsername(),
+      proxyPassword: this.proxyPassword()
     };
   },
 

@@ -422,7 +422,7 @@ var PaperAcquisitionAntiScrape;
         date: this.cleanField(item.getField("date")),
         mode,
         profile: profile || "auto",
-        proxyServer: this.getProxyServer()
+        ...this.proxyPayload()
       };
     },
 
@@ -516,7 +516,7 @@ var PaperAcquisitionAntiScrape;
 
       const serviceURL = this.getServiceURL();
       const body = {
-        proxyServer: this.getProxyServer()
+        ...this.proxyPayload()
       };
       if (loginUrl) body.loginUrl = loginUrl;
       const result = await this.postJSON(`${serviceURL}/api/login/${encodeURIComponent(profile)}`, body);
@@ -530,6 +530,7 @@ var PaperAcquisitionAntiScrape;
           `Login URL: ${result.loginUrl || "unknown"}`,
           `CDP: ${result.cdpURL || "unknown"}`,
           `Proxy: ${result.proxyServer || "not configured"}`,
+          `Proxy auth: ${result.proxyAuthConfigured ? "configured" : "not configured"}`,
           `Browser profile: ${result.userDataDir || "unknown"}`
         ].join("\n")
       );
@@ -732,6 +733,12 @@ var PaperAcquisitionAntiScrape;
         envLines.push(`export PAA_PROXY_SERVER=${this.shellQuote(proxyServer)}`);
         envLines.push(`export CHROME_PROXY_SERVER=${this.shellQuote(proxyServer)}`);
       }
+      const proxyUsername = this.getProxyUsername();
+      const proxyPassword = this.getProxyPassword();
+      if (proxyUsername || proxyPassword) {
+        envLines.push(`export PAA_PROXY_USERNAME=${this.shellQuote(proxyUsername)}`);
+        envLines.push(`export PAA_PROXY_PASSWORD=${this.shellQuote(proxyPassword)}`);
+      }
       const script = [
         `cd ${this.shellQuote(cwd)}`,
         "mkdir -p \"$HOME/.paper-acquisition\"",
@@ -773,6 +780,22 @@ var PaperAcquisitionAntiScrape;
 
     getProxyServer() {
       return String(this.getPref("proxyServer", "") || "").trim();
+    },
+
+    getProxyUsername() {
+      return String(this.getPref("proxyUsername", "") || "").trim();
+    },
+
+    getProxyPassword() {
+      return String(this.getPref("proxyPassword", "") || "");
+    },
+
+    proxyPayload() {
+      return {
+        proxyServer: this.getProxyServer(),
+        proxyUsername: this.getProxyUsername(),
+        proxyPassword: this.getProxyPassword()
+      };
     },
 
     openSettings() {

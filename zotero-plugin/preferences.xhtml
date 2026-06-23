@@ -43,8 +43,22 @@
                     placeholder="127.0.0.1:7890 or socks5://127.0.0.1:1080"
                     preference="extensions.paperAcquisitionAntiScrape.proxyServer"/>
       </html:div>
+      <html:div class="paa-form-row">
+        <html:label for="paa-proxy-username">Proxy username</html:label>
+        <html:input id="paa-proxy-username"
+                    type="text"
+                    autocomplete="off"
+                    preference="extensions.paperAcquisitionAntiScrape.proxyUsername"/>
+      </html:div>
+      <html:div class="paa-form-row">
+        <html:label for="paa-proxy-password">Proxy password</html:label>
+        <html:input id="paa-proxy-password"
+                    type="password"
+                    autocomplete="off"
+                    preference="extensions.paperAcquisitionAntiScrape.proxyPassword"/>
+      </html:div>
       <description>
-        Optional. Applies only to PDF acquisition requests handled by this plugin's local service and browser fallback. Prefer a localhost proxy without embedded credentials.
+        Optional. Applies only to PDF acquisition requests handled by this plugin's local service and browser fallback. Proxy credentials are stored as Zotero preferences.
       </description>
       <hbox class="preferences-button-group">
         <button id="paa-test-service" label="Test service"/>

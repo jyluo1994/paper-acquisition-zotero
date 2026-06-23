@@ -97,6 +97,7 @@ async function runAcquireJob(job, body) {
   const profileConfig = getProfile(body.profile || "auto");
   const proxyServer = resolveProxyServer(body, profileConfig);
   const proxyBypassList = resolveProxyBypassList(body, profileConfig);
+  const proxyAuth = resolveProxyAuth(body, profileConfig);
 
   const identifier = cleanIdentifier(body);
   if (!identifier) {
@@ -136,7 +137,7 @@ async function runAcquireJob(job, body) {
     CHROME_BIN: process.env.CHROME_BIN || detectChrome(),
     CHROME_USER_DATA_DIR: expandPath(profileConfig.browserUserDataDir || process.env.CHROME_USER_DATA_DIR || ""),
     CHROME_PROFILE_DIRECTORY: profileConfig.chromeProfileDirectory || process.env.CHROME_PROFILE_DIRECTORY || "",
-    ...proxyEnv(proxyServer, proxyBypassList)
+    ...proxyEnv(proxyServer, proxyBypassList, proxyAuth)
   };
 
   const result = await spawnJSON(process.execPath, [BROWSER_FALLBACK, identifier], {
@@ -169,13 +170,14 @@ async function runFastCommand(identifier, body, profileConfig) {
   const command = renderFastCommand(FAST_COMMAND, identifier, body);
   const proxyServer = resolveProxyServer(body, profileConfig);
   const proxyBypassList = resolveProxyBypassList(body, profileConfig);
+  const proxyAuth = resolveProxyAuth(body, profileConfig);
   const result = await spawnJSON("/bin/sh", ["-lc", command], {
     cwd: REPO_ROOT,
     env: {
       ...process.env,
       PAA_IDENTIFIER: identifier,
       PAA_DOWNLOAD_DIR: DOWNLOAD_DIR,
-      ...proxyEnv(proxyServer, proxyBypassList)
+      ...proxyEnv(proxyServer, proxyBypassList, proxyAuth)
     },
     timeoutMS: Number(process.env.PAA_FAST_TIMEOUT_MS || 180000)
   });
@@ -352,6 +354,20 @@ function resolveProxyBypassList(body = {}, profileConfig = {}) {
   ).trim();
 }
 
+function resolveProxyAuth(body = {}, profileConfig = {}) {
+  if (Object.prototype.hasOwnProperty.call(body, "proxyUsername") ||
+      Object.prototype.hasOwnProperty.call(body, "proxyPassword")) {
+    return {
+      username: String(body.proxyUsername || ""),
+      password: String(body.proxyPassword || "")
+    };
+  }
+  return {
+    username: String(profileConfig.proxyUsername || process.env.PAA_PROXY_USERNAME || process.env.CHROME_PROXY_USERNAME || ""),
+    password: String(profileConfig.proxyPassword || process.env.PAA_PROXY_PASSWORD || process.env.CHROME_PROXY_PASSWORD || "")
+  };
+}
+
 function normalizeProxyServer(value) {
   const proxy = String(value || "").trim();
   if (!proxy) return "";
@@ -363,22 +379,42 @@ function normalizeProxyServer(value) {
   return proxy;
 }
 
-function proxyEnv(proxyServer, proxyBypassList = "") {
+function proxyEnv(proxyServer, proxyBypassList = "", proxyAuth = {}) {
   if (!proxyServer) return {};
   const env = {
     PAA_PROXY_SERVER: proxyServer,
     CHROME_PROXY_SERVER: proxyServer
   };
+  if (proxyAuth.username || proxyAuth.password) {
+    env.PAA_PROXY_USERNAME = proxyAuth.username || "";
+    env.PAA_PROXY_PASSWORD = proxyAuth.password || "";
+    env.CHROME_PROXY_USERNAME = proxyAuth.username || "";
+    env.CHROME_PROXY_PASSWORD = proxyAuth.password || "";
+  }
   if (proxyBypassList) {
     env.PAA_PROXY_BYPASS_LIST = proxyBypassList;
     env.CHROME_PROXY_BYPASS_LIST = proxyBypassList;
   }
   if (/^(https?|socks4|socks5|socks5h):\/\//i.test(proxyServer)) {
-    env.HTTP_PROXY = proxyServer;
-    env.HTTPS_PROXY = proxyServer;
-    env.ALL_PROXY = proxyServer;
+    const authenticatedProxy = authenticatedProxyURL(proxyServer, proxyAuth);
+    env.HTTP_PROXY = authenticatedProxy;
+    env.HTTPS_PROXY = authenticatedProxy;
+    env.ALL_PROXY = authenticatedProxy;
   }
   return env;
+}
+
+function authenticatedProxyURL(proxyServer, proxyAuth = {}) {
+  if (!proxyServer || (!proxyAuth.username && !proxyAuth.password)) return proxyServer;
+  try {
+    const url = new URL(proxyServer);
+    url.username = proxyAuth.username || "";
+    url.password = proxyAuth.password || "";
+    return url.toString();
+  }
+  catch {
+    return proxyServer;
+  }
 }
 
 function maskProxyServer(proxyServer) {
@@ -404,6 +440,9 @@ function sanitizeProfiles(profiles) {
     out[name] = { ...config };
     if (out[name].proxyServer) {
       out[name].proxyServer = maskProxyServer(normalizeProxyServer(out[name].proxyServer));
+    }
+    if (out[name].proxyPassword) {
+      out[name].proxyPassword = "***";
     }
   }
   return out;
@@ -435,6 +474,7 @@ async function startLoginProfile(profile, body) {
   const startURL = body.loginUrl || profileConfig.loginUrl || "about:blank";
   const proxyServer = resolveProxyServer(body, profileConfig);
   const proxyBypassList = resolveProxyBypassList(body, profileConfig);
+  const proxyAuth = resolveProxyAuth(body, profileConfig);
   const chromeArgs = [
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
@@ -467,7 +507,8 @@ async function startLoginProfile(profile, body) {
     loginUrl: startURL,
     chromeProfileDirectory: profileConfig.chromeProfileDirectory || "",
     zeroOmegaProfile: profileConfig.zeroOmegaProfile || "",
-    proxyServer: maskProxyServer(proxyServer)
+    proxyServer: maskProxyServer(proxyServer),
+    proxyAuthConfigured: !!(proxyAuth.username || proxyAuth.password)
   };
 }
 

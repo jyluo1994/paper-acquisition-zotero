@@ -725,13 +725,18 @@ var PaperAcquisitionAntiScrape;
 
       const logPath = "$HOME/.paper-acquisition/service.log";
       const proxyServer = this.getProxyServer();
-      const envPrefix = proxyServer
-        ? `PAA_PROXY_SERVER=${this.shellQuote(proxyServer)} CHROME_PROXY_SERVER=${this.shellQuote(proxyServer)} `
-        : "";
+      const envLines = [
+        "export PATH=\"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH\""
+      ];
+      if (proxyServer) {
+        envLines.push(`export PAA_PROXY_SERVER=${this.shellQuote(proxyServer)}`);
+        envLines.push(`export CHROME_PROXY_SERVER=${this.shellQuote(proxyServer)}`);
+      }
       const script = [
         `cd ${this.shellQuote(cwd)}`,
         "mkdir -p \"$HOME/.paper-acquisition\"",
-        `${envPrefix}nohup ${command} >> ${logPath} 2>&1 &`
+        ...envLines,
+        `nohup ${command} >> ${logPath} 2>&1 &`
       ].join(" && ");
 
       await Zotero.Utilities.Internal.exec(shell, ["-lc", script]);

@@ -560,7 +560,6 @@ var PaperAcquisitionAntiScrape;
           parentItemID: item.id,
           title: result.title ? `Full Text PDF - ${result.title}` : "Full Text PDF"
         });
-        await this.addProvenanceNote(item, result);
         await this.setOnlyStatusTag(item, "pdf:acquired");
         return "acquired";
       }
@@ -712,22 +711,6 @@ var PaperAcquisitionAntiScrape;
       }
       item.addTag(tag);
       await item.saveTx();
-    },
-
-    async addProvenanceNote(parentItem, result) {
-      const lines = [
-        "PDF acquired by local paper-acquisition service.",
-        `Route: ${this.escapeHTML(result.route || result.profile || "unknown")}`,
-        `Provider: ${this.escapeHTML(result.provider || "unknown")}`,
-        `Access mode: ${this.escapeHTML(result.accessMode || result.access_mode || "unknown")}`,
-        `Time: ${this.escapeHTML(new Date().toISOString())}`
-      ];
-
-      const note = new Zotero.Item("note");
-      note.libraryID = parentItem.libraryID;
-      note.parentID = parentItem.id;
-      note.setNote(`<p>${lines.join("<br/>")}</p>`);
-      await note.saveTx();
     },
 
     escapeHTML(value) {

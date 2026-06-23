@@ -59,7 +59,7 @@ function cleanIdentifier(body) {
   const doi = String(body.doi || "").trim();
   const identifier = String(body.identifier || "").trim();
   const candidates = [];
-  if (url && isNonDoiHttpURL(url)) candidates.push(url);
+  if (url && isNonDoiHttpURL(url) && !isMetadataOnlyURL(url)) candidates.push(url);
   if (doi) candidates.push(doi);
   if (url) candidates.push(url);
   if (identifier) candidates.push(identifier);
@@ -75,6 +75,18 @@ function isNonDoiHttpURL(value) {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
     return /^https?:$/i.test(url.protocol) && host !== "doi.org" && host !== "dx.doi.org";
+  }
+  catch {
+    return false;
+  }
+}
+
+function isMetadataOnlyURL(value) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return host === "pubmed.ncbi.nlm.nih.gov" ||
+      ((host === "www.ncbi.nlm.nih.gov" || host === "ncbi.nlm.nih.gov") && /^\/pubmed\/?/i.test(url.pathname));
   }
   catch {
     return false;

@@ -149,6 +149,7 @@ async function runAcquireJob(job, body) {
     });
   }
 
+  const browserMode = body.useExistingBrowser ? "existing" : "background";
   const env = {
     ...process.env,
     OUTPUT_DIR: DOWNLOAD_DIR,
@@ -157,6 +158,8 @@ async function runAcquireJob(job, body) {
     CHROME_BIN: process.env.CHROME_BIN || detectChrome(),
     CHROME_USER_DATA_DIR: browserUserDataDirFor(profileName, profileConfig),
     CHROME_PROFILE_DIRECTORY: profileConfig.chromeProfileDirectory || process.env.CHROME_PROFILE_DIRECTORY || "",
+    PAA_BROWSER_MODE: browserMode,
+    PAA_USE_EXISTING_BROWSER: body.useExistingBrowser ? "1" : "",
     ...proxyEnv(proxyServer, proxyBypassList, proxyAuth)
   };
 

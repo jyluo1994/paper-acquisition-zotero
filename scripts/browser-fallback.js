@@ -22,6 +22,7 @@
  *   PAA_PROXY_BYPASS_LIST / CHROME_PROXY_BYPASS_LIST Chrome 代理绕过列表
  *   PAA_PROXY_USERNAME / PAA_PROXY_PASSWORD HTTP proxy authentication
  *   CDP_PORT        远程调试端口（默认 9222）
+ *   PAA_BROWSER_MODE background（默认，headless）| existing（复用已打开浏览器）| visible
  */
 
 const fs = require("fs");
@@ -66,19 +67,14 @@ async function connectBrowser() {
   const proxyServer = normalizeProxyServer(process.env.PAA_PROXY_SERVER || process.env.CHROME_PROXY_SERVER || "");
   const proxyBypassList = String(process.env.PAA_PROXY_BYPASS_LIST || process.env.CHROME_PROXY_BYPASS_LIST || "").trim();
   const proxyAuth = proxyAuthCredentials();
+  const browserMode = String(process.env.PAA_BROWSER_MODE || "background").trim().toLowerCase();
+  const preferExisting = truthy(process.env.PAA_USE_EXISTING_BROWSER) ||
+    ["existing", "visible", "foreground"].includes(browserMode);
+  const visibleLaunch = ["visible", "foreground"].includes(browserMode);
 
-  // 先尝试连接已有浏览器
-  try {
-    const browser = await puppeteer.connect({ browserURL: BROWSER_URL });
-    console.error(`[connect] Connected to existing browser at ${BROWSER_URL}`);
-    if (proxyServer) {
-      console.error("[connect] Proxy setting is only applied when launching a new browser.");
-    }
-    if (proxyAuth) {
-      console.error("[connect] Proxy authentication will be applied to new pages.");
-    }
-    return browser;
-  } catch {
+  if (preferExisting) {
+    const existing = await connectExistingBrowser(proxyServer, proxyAuth);
+    if (existing) return existing;
     console.error(`[connect] No browser at ${BROWSER_URL}, trying to launch...`);
   }
 
@@ -90,13 +86,13 @@ async function connectBrowser() {
       : path.join(OUTPUT, "..", ".browser-profile");
     fs.mkdirSync(userDataDir, { recursive: true });
 
-    const { spawn } = require("child_process");
     const chromeArgs = [
-      `--remote-debugging-port=${CDP_PORT}`,
-      `--user-data-dir=${userDataDir}`,
       "--no-first-run",
       "--no-default-browser-check",
     ];
+    if (visibleLaunch) {
+      chromeArgs.push(`--remote-debugging-port=${CDP_PORT}`);
+    }
     if (process.env.CHROME_PROFILE_DIRECTORY) {
       chromeArgs.push(`--profile-directory=${process.env.CHROME_PROFILE_DIRECTORY}`);
     }
@@ -106,29 +102,62 @@ async function connectBrowser() {
     if (proxyBypassList) {
       chromeArgs.push(`--proxy-bypass-list=${proxyBypassList}`);
     }
-    chromeArgs.push("--new-window", "about:blank");
     console.error(proxyServer
       ? "[connect] Launching Chrome with command-line proxy."
       : "[connect] Launching Chrome without command-line proxy; browser profile may manage proxy."
     );
-    const child = spawn(chromeBin, chromeArgs, { detached: true, stdio: "ignore" });
-    child.unref();
-
-    for (let i = 0; i < 20; i++) {
-      try {
-        const b = await puppeteer.connect({ browserURL: `http://127.0.0.1:${CDP_PORT}` });
-        console.error(`[connect] Launched Chrome at port ${CDP_PORT}`);
-        return b;
-      } catch { await sleep(1000); }
+    try {
+      const browser = await puppeteer.launch({
+        executablePath: chromeBin,
+        headless: !visibleLaunch,
+        userDataDir,
+        args: visibleLaunch ? [...chromeArgs, "--new-window", "about:blank"] : chromeArgs,
+        defaultViewport: null
+      });
+      console.error(visibleLaunch
+        ? `[connect] Launched visible Chrome at port ${CDP_PORT}`
+        : "[connect] Launched headless Chrome for background acquisition."
+      );
+      return { browser, closeOnDone: true, headless: !visibleLaunch };
     }
-    throw new Error("Timed out waiting for Chrome to start");
+    catch (err) {
+      if (!preferExisting) {
+        const existing = await connectExistingBrowser(proxyServer, proxyAuth);
+        if (existing) return existing;
+      }
+      throw err;
+    }
   }
+
+  const existing = await connectExistingBrowser(proxyServer, proxyAuth);
+  if (existing) return existing;
 
   throw new Error(
     "No browser available. Start Chrome with:\n" +
     "  google-chrome --remote-debugging-port=9222 --user-data-dir=$HOME/.openclaw/browser-clone\n" +
     "Or set CHROME_BIN env var for auto-launch."
   );
+}
+
+async function connectExistingBrowser(proxyServer, proxyAuth) {
+  try {
+    const browser = await puppeteer.connect({ browserURL: BROWSER_URL });
+    console.error(`[connect] Connected to existing browser at ${BROWSER_URL}`);
+    if (proxyServer) {
+      console.error("[connect] Proxy setting is only applied when launching a new browser.");
+    }
+    if (proxyAuth) {
+      console.error("[connect] Proxy authentication will be applied to new pages.");
+    }
+    return { browser, closeOnDone: false, headless: false };
+  }
+  catch {
+    return null;
+  }
+}
+
+function truthy(value) {
+  return /^(1|true|yes|on)$/i.test(String(value || "").trim());
 }
 
 function proxyAuthCredentials() {
@@ -425,7 +454,8 @@ async function main() {
 
   const inputIsURL = /^https?:\/\//i.test(input);
   const doi = inputIsURL ? null : normalizeDoi(input);
-  const browser = await connectBrowser();
+  const connection = await connectBrowser();
+  const browser = connection.browser;
 
   let page = null;
   let keepPageOpen = false;
@@ -520,8 +550,13 @@ async function main() {
     }));
     process.exitCode = 1;
   } finally {
-    if (page && !keepPageOpen) await page.close().catch(() => {});
-    await browser.disconnect().catch(() => {});
+    if (page && (!keepPageOpen || connection.closeOnDone)) await page.close().catch(() => {});
+    if (connection.closeOnDone) {
+      await browser.close().catch(() => {});
+    }
+    else {
+      await browser.disconnect().catch(() => {});
+    }
   }
 }
 

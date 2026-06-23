@@ -395,6 +395,9 @@ var PaperAcquisitionAntiScrape;
       }
 
       const payload = this.itemPayload(item, profile, mode);
+      if (options.manualRetry) {
+        payload.useExistingBrowser = true;
+      }
       if (!payload.doi && !payload.url && !payload.title) {
         await this.setOnlyStatusTag(item, "pdf:missing-metadata");
         return "missingMetadata";

@@ -366,12 +366,10 @@ function resolveProxyServer(body = {}, profileConfig = {}) {
 }
 
 function resolveProxyMode(body = {}, profileConfig = {}) {
-  const raw = String(
-    body.proxyMode ||
-    profileConfig.proxyMode ||
-    process.env.PAA_PROXY_MODE ||
-    "browser-profile"
-  ).trim().toLowerCase();
+  const bodyMode = String(body.proxyMode || "").trim().toLowerCase();
+  const raw = bodyMode && bodyMode !== "profile"
+    ? bodyMode
+    : String(profileConfig.proxyMode || process.env.PAA_PROXY_MODE || "browser-profile").trim().toLowerCase();
   return raw === "local" ? "local" : "browser-profile";
 }
 

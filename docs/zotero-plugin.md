@@ -45,7 +45,7 @@ Set:
 Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
 Default profile: your-local-profile
-Proxy mode: browser-profile
+Proxy mode: profile
 Acquisition proxy: optional
 Proxy username: optional
 Proxy password: optional
@@ -53,10 +53,12 @@ Proxy password: optional
 
 Then click `Start service`, or enable `Start the local service automatically when needed`.
 
-`Proxy mode` controls whether proxy routing is owned by the browser profile or
-by the plugin. Use `browser-profile` for Chrome/ZeroOmega-managed routes. Use
-`local` when the plugin should inject `Acquisition proxy` into the helper
-browser. Proxy username/password are stored as Zotero preferences.
+`Proxy mode` controls whether proxy routing is owned by the local service
+profile, browser profile, or plugin settings. Use `profile` to read proxy
+settings from `service/profiles.json`. Use `browser-profile` for
+Chrome/ZeroOmega-managed browser routes. Use `local` when the plugin should
+inject `Acquisition proxy` from Zotero settings into the helper browser.
+Proxy username/password in Zotero settings are stored as Zotero preferences.
 
 Manual terminal startup still works:
 
@@ -177,7 +179,11 @@ The automatic flow listens for newly added regular Zotero items, waits for the c
 
 ## Proxy Modes
 
-`browser-profile` is the default. In this mode, the service does not pass
+`profile` is the default. In this mode, the plugin does not send proxy
+credentials and the service reads proxy settings from the selected local
+profile.
+
+`browser-profile` mode tells the service not to pass
 `--proxy-server` to Chrome; proxy routing is handled by the Chrome profile,
 including extensions such as ZeroOmega.
 

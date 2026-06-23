@@ -61,11 +61,11 @@ The default service URL is:
 http://127.0.0.1:24372
 ```
 
-`Proxy mode` controls routing. Use `browser-profile` when Chrome or an
-extension such as ZeroOmega manages the proxy. Use `local` when the plugin
-should inject `Acquisition proxy` into the helper browser. Neither mode changes
-system proxy settings. Proxy username/password are optional and are stored as
-Zotero preferences.
+`Proxy mode` controls routing. Use `profile` when the local service profile
+contains the proxy settings. Use `browser-profile` when Chrome or an extension
+such as ZeroOmega manages the proxy. Use `local` when the plugin should inject
+`Acquisition proxy` from Zotero settings into the helper browser. None of these
+modes changes system proxy settings.
 
 Institution-specific profile names, login URLs, proxy notes, and browser
 profile details should live in the local service configuration rather than in

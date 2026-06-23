@@ -841,8 +841,9 @@ var PaperAcquisitionAntiScrape;
     },
 
     getProxyMode() {
-      const mode = String(this.getPref("proxyMode", "browser-profile") || "browser-profile").trim().toLowerCase();
-      return mode === "local" ? "local" : "browser-profile";
+      const mode = String(this.getPref("proxyMode", "profile") || "profile").trim().toLowerCase();
+      if (mode === "local" || mode === "browser-profile") return mode;
+      return "profile";
     },
 
     getProxyUsername() {

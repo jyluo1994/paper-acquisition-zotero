@@ -3,8 +3,8 @@
     "paper-acquisition-anti-scrape@jyluo1994.github.io": {
       "updates": [
         {
-          "version": "0.2.8",
-          "update_link": "https://github.com/jyluo1994/paper-acquisition-zotero/releases/download/v0.2.8/paper-acquisition-zotero.xpi",
+          "version": "0.2.9",
+          "update_link": "https://github.com/jyluo1994/paper-acquisition-zotero/releases/download/v0.2.9/paper-acquisition-zotero.xpi",
           "applications": {
             "zotero": {
               "strict_min_version": "7.0",

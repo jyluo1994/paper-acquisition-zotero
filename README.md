@@ -57,7 +57,7 @@ Recommended settings:
 Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
 Default profile: your-local-profile
-Proxy mode: browser-profile
+Proxy mode: profile
 Acquisition proxy: optional
 Proxy username: optional
 Proxy password: optional
@@ -65,7 +65,7 @@ Proxy password: optional
 
 Enable `Start the local service automatically when needed` if you want Zotero to start the helper service for you.
 
-`Proxy mode` controls where proxy routing happens. Use `browser-profile` when a Chrome profile or extension such as ZeroOmega manages routing. Use `local` when the plugin should inject `Acquisition proxy` into the helper browser. Neither mode changes macOS system proxy settings.
+`Proxy mode` controls where proxy routing happens. Use `profile` to read proxy settings from the local service profile. Use `browser-profile` when a Chrome profile or extension such as ZeroOmega manages routing. Use `local` when the plugin should inject `Acquisition proxy` from Zotero settings into the helper browser. None of these modes change macOS system proxy settings.
 
 Proxy username/password are optional and are stored as Zotero preferences. Prefer a localhost proxy that already handles remote-node credentials when possible.
 

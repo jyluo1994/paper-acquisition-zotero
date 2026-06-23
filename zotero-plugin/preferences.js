@@ -57,8 +57,9 @@ var PaperAcquisitionPreferences = {
   },
 
   proxyMode() {
-    const mode = String(this.pref("proxyMode", "browser-profile") || "browser-profile").trim().toLowerCase();
-    return mode === "local" ? "local" : "browser-profile";
+    const mode = String(this.pref("proxyMode", "profile") || "profile").trim().toLowerCase();
+    if (mode === "local" || mode === "browser-profile") return mode;
+    return "profile";
   },
 
   proxyUsername() {
@@ -75,7 +76,9 @@ var PaperAcquisitionPreferences = {
     const data = await this.parseResponse(response);
     const profiles = Array.isArray(data.profiles) ? data.profiles.join(", ") : "unknown";
     const mode = this.proxyMode();
-    const proxy = mode === "local"
+    const proxy = mode === "profile"
+      ? "service profile proxy mode"
+      : mode === "local"
       ? (this.proxyServer() ? "local proxy configured" : "local proxy mode, proxy empty")
       : "browser profile proxy mode";
     const auth = mode === "local" && this.proxyUsername() ? "proxy auth configured" : "proxy auth off";

@@ -61,6 +61,8 @@ The default service URL is:
 http://127.0.0.1:24372
 ```
 
-The bundled service includes example institution profiles such as `pumc-kokonur-zeroomega`, `pumc-webvpn`, `sysu-carsi`, `sysu-portal`, and `sysu-vpn`. The PUMC profile reuses Chrome ZeroOmega's `kokonur` profile and does not store proxy credentials in this repository.
+Institution-specific profile names, login URLs, proxy notes, and browser
+profile details should live in the local service configuration rather than in
+public docs.
 
 Automatic acquisition is disabled by default. If enabled, it waits before processing new items and checks again for existing PDF attachments, so Zotero's own associated-file download and other plugins get a chance to finish first.

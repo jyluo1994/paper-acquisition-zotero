@@ -132,18 +132,10 @@ Profiles are stored under:
 ~/.paper-acquisition/profiles
 ```
 
-Use separate profile names for separate institutional routes, for example:
-
-- `pumc-webvpn`
-- `pumc-kokonur-zeroomega`
-- `pumc-webvpn-legacy`
-- `sysu-carsi`
-- `sysu-portal`
-- `sysu-vpn`
-
-Do not export or commit these profile directories.
-
-For the PUMC route, `pumc-kokonur-zeroomega` and `pumc-webvpn` are configured to reuse the user's existing Chrome ZeroOmega profile named `kokonur`. The repository stores only the profile name and Chrome launch metadata, not proxy credentials. Before acquisition, use `Refresh institution login profile...` and confirm Chrome is using `kokonur` in ZeroOmega.
+Use separate local profile names for separate institutional routes. Keep
+institution-specific profile names, login URLs, proxy notes, and browser profile
+details in `service/profiles.json`, and do not export or commit browser profile
+directories.
 
 ## Automatic Acquisition
 

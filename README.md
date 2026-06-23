@@ -12,7 +12,7 @@ This repository was split out from `jyluo1994/paper-acquisition-anti-scrape` so 
 - Queueing and duplicate prevention
 - Optional auto-acquisition for newly imported regular items
 - Optional local service auto-start from Zotero
-- Institutional profile support, including Chrome/ZeroOmega profile reuse
+- Institutional profile support, including external browser profile reuse
 
 The Zotero plugin does not store institutional cookies, proxy passwords, SSO tokens, or request headers. Browser profiles and cookies stay outside Zotero.
 
@@ -55,7 +55,7 @@ Recommended settings:
 ```text
 Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
-Default profile: pumc-kokonur-zeroomega
+Default profile: your-local-profile
 ```
 
 Enable `Start the local service automatically when needed` if you want Zotero to start the helper service for you.
@@ -86,16 +86,8 @@ cp service/profiles.example.json service/profiles.json
 
 `service/profiles.json` is ignored by git.
 
-The bundled profiles include:
-
-- `pumc-kokonur-zeroomega`
-- `pumc-webvpn`
-- `pumc-webvpn-legacy`
-- `sysu-carsi`
-- `sysu-portal`
-- `sysu-vpn`
-
-For the PUMC route, confirm Chrome is using the ZeroOmega profile named `kokonur` before acquisition.
+Keep institution-specific profile names, login URLs, proxy notes, and browser
+profile details in your local `service/profiles.json`.
 
 ## Development
 

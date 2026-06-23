@@ -184,7 +184,6 @@ async function inspectPage(page, provider) {
     info.title = await page.title();
     const body = await page.evaluate(() => document.body?.innerText || "");
     info.unavailable = /page not found|does not exist|moved|looking for does not exist/i.test(body);
-    info.humanVerification = isHumanVerificationPage(body, info.title, info.currentUrl);
     info.accessMode = /open access/i.test(body) ? "open_access" : /access provided by/i.test(body) ? "institutional" : "unknown";
     const inst = body.match(/access provided by\s+([^\n]+)/i);
     if (inst) info.institution = inst[1].trim();
@@ -232,6 +231,13 @@ async function inspectPage(page, provider) {
     return null;
   }, provider);
 
+  if (!info.pdfUrl) {
+    try {
+      const body = await page.evaluate(() => document.body?.innerText || "");
+      info.humanVerification = isHumanVerificationPage(body, info.title, info.currentUrl);
+    } catch {}
+  }
+
   return info;
 }
 
@@ -250,7 +256,8 @@ function isHumanVerificationPage(body, title, url) {
     "access denied",
     "unusual traffic",
     "suspicious traffic",
-    "automated access"
+    "automated access has been blocked",
+    "automated access is temporarily blocked"
   ].some((needle) => text.includes(needle));
 }
 
@@ -269,7 +276,7 @@ function outputName(doi, articleUrl) {
   return `url-${crypto.createHash("md5").update(articleUrl).digest("hex").slice(0, 12)}.pdf`;
 }
 
-async function downloadPdf(page, pdfUrl, dir, name) {
+async function downloadPdf(page, pdfUrl, dir, name, depth = 0) {
   fs.mkdirSync(dir, { recursive: true });
   const before = new Set(fs.readdirSync(dir));
 
@@ -291,6 +298,23 @@ async function downloadPdf(page, pdfUrl, dir, name) {
     }
   }
 
+  const fetched = await fetchPdfInPage(page, pdfUrl);
+  if (fetched) {
+    const filePath = path.join(dir, name);
+    fs.writeFileSync(filePath, fetched.buffer);
+    console.error(`[download] Page fetch: ${filePath} (${fetched.buffer.length} bytes)`);
+    return { filePath, size: fetched.buffer.length };
+  }
+
+  if (depth < 2) {
+    await page.waitForSelector('a[href*="/doi/pdf/"]', { timeout: 10000 }).catch(() => {});
+    const directUrl = await findPDFDownloadURL(page, pdfUrl);
+    if (directUrl && directUrl !== pdfUrl) {
+      console.error(`[download] Found nested PDF download URL: ${directUrl}`);
+      return await downloadPdf(page, directUrl, dir, name, depth + 1);
+    }
+  }
+
   // 等待浏览器下载完成
   for (let i = 0; i < 30; i++) {
     await sleep(1000);
@@ -307,6 +331,73 @@ async function downloadPdf(page, pdfUrl, dir, name) {
   }
 
   throw new Error("download_failed: timed out waiting for PDF");
+}
+
+async function fetchPdfInPage(page, pdfUrl) {
+  try {
+    const result = await page.evaluate(async (url) => {
+      const response = await fetch(url, { credentials: "include" });
+      const contentType = (response.headers.get("content-type") || "").toLowerCase();
+      const arrayBuffer = await response.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      const isPdf = contentType.includes("application/pdf") ||
+        (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46);
+      if (!response.ok || !isPdf) {
+        return {
+          ok: false,
+          status: response.status,
+          contentType,
+          size: bytes.byteLength
+        };
+      }
+
+      let binary = "";
+      const chunkSize = 0x8000;
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+      }
+      return {
+        ok: true,
+        contentType,
+        size: bytes.byteLength,
+        base64: btoa(binary)
+      };
+    }, pdfUrl);
+
+    if (!result || !result.ok || !result.base64) return null;
+    return { buffer: Buffer.from(result.base64, "base64"), contentType: result.contentType };
+  }
+  catch {
+    return null;
+  }
+}
+
+async function findPDFDownloadURL(page, currentUrl) {
+  try {
+    return await page.evaluate((current) => {
+      const absolutize = (value) => {
+        try {
+          return new URL(value, document.baseURI).href;
+        }
+        catch {
+          return value || "";
+        }
+      };
+      const links = Array.from(document.querySelectorAll("a[href]")).map((a) => ({
+        text: (a.innerText || a.getAttribute("aria-label") || a.getAttribute("title") || "").trim().toLowerCase(),
+        href: absolutize(a.getAttribute("href") || a.href)
+      }));
+      const preferred = links.find((link) => /\/doi\/pdf\//i.test(link.href) && /[?&]download=true/i.test(link.href));
+      if (preferred) return preferred.href;
+      const pdfLink = links.find((link) => /\/doi\/pdf\//i.test(link.href) && link.href !== current);
+      if (pdfLink) return pdfLink.href;
+      const textDownload = links.find((link) => /download|pdf|get_app/i.test(`${link.text} ${link.href}`) && link.href !== current);
+      return textDownload ? textDownload.href : "";
+    }, currentUrl);
+  }
+  catch {
+    return "";
+  }
 }
 
 async function main() {
@@ -346,29 +437,30 @@ async function main() {
 
     await page.setDefaultNavigationTimeout(120000);
     await page.goto(articleUrl, { waitUntil: "domcontentloaded" });
-    await sleep(6000);
+    provider = inferProvider(page.url() || articleUrl);
+    await waitForArticleReady(page, provider);
 
     provider = inferProvider(page.url() || articleUrl);
     info = await inspectPage(page, provider);
     console.error(`[inspect] provider=${provider} access=${info.accessMode} pdf=${info.pdfUrl || ""} url=${info.currentUrl || articleUrl}`);
 
-    if (info.unavailable) {
+    if (info.unavailable && !info.pdfUrl) {
       console.log(JSON.stringify({ status: "article_unavailable", title: info.title, url: info.currentUrl || articleUrl, article_url: articleUrl }));
       return;
     }
-    if (info.humanVerification) {
-      keepPageOpen = true;
-      console.log(JSON.stringify({
-        status: "human_verification_required",
-        title: info.title,
-        url: info.currentUrl || articleUrl,
-        article_url: articleUrl,
-        provider,
-        reason: "The browser page appears to require manual verification."
-      }));
-      return;
-    }
     if (!info.pdfUrl) {
+      if (info.humanVerification) {
+        keepPageOpen = true;
+        console.log(JSON.stringify({
+          status: "human_verification_required",
+          title: info.title,
+          url: info.currentUrl || articleUrl,
+          article_url: articleUrl,
+          provider,
+          reason: "The browser page appears to require manual verification."
+        }));
+        return;
+      }
       keepPageOpen = true;
       console.log(JSON.stringify({
         status: "no_pdf_link_found",
@@ -414,6 +506,23 @@ async function main() {
   } finally {
     if (page && !keepPageOpen) await page.close().catch(() => {});
     await browser.disconnect().catch(() => {});
+  }
+}
+
+async function waitForArticleReady(page, provider) {
+  const selectors = [
+    'a[href*="/doi/pdf/"]',
+    'a[href*="/doi/epdf/"]',
+    'a[href*="/doi/pdfdirect/"]',
+    'a[href$=".pdf"]',
+    'iframe[src*=".pdf"], embed[src*=".pdf"], object[data*=".pdf"]'
+  ];
+  const timeout = provider === "rsna" ? 15000 : 8000;
+  try {
+    await page.waitForSelector(selectors.join(","), { timeout });
+  }
+  catch {
+    await sleep(3000);
   }
 }
 

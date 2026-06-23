@@ -1,6 +1,6 @@
 {
   "name": "paper-acquisition-zotero",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "private": true,
   "description": "Zotero plugin and local service for acquiring PDFs through institutional browser profiles.",
   "type": "commonjs",

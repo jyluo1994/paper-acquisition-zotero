@@ -293,6 +293,9 @@ function isHumanVerificationPage(body, title, url) {
     "access denied",
     "unusual traffic",
     "suspicious traffic",
+    "there was a problem providing the content you requested",
+    "please contact our support team for more information",
+    "cpe00001",
     "automated access has been blocked",
     "automated access is temporarily blocked"
   ].some((needle) => text.includes(needle));

@@ -1,5 +1,5 @@
 pref("extensions.paperAcquisitionAntiScrape.serviceURL", "http://127.0.0.1:24372");
-pref("extensions.paperAcquisitionAntiScrape.autoStartService", false);
+pref("extensions.paperAcquisitionAntiScrape.autoStartService", true);
 pref("extensions.paperAcquisitionAntiScrape.serviceWorkingDirectory", "");
 pref("extensions.paperAcquisitionAntiScrape.serviceStartCommand", "npm start");
 pref("extensions.paperAcquisitionAntiScrape.defaultProfile", "auto");

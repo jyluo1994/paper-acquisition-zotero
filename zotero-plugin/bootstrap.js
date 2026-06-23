@@ -758,7 +758,7 @@ var PaperAcquisitionAntiScrape;
         return;
       }
       catch (err) {
-        if (!this.getPref("autoStartService", false)) {
+        if (!this.getPref("autoStartService", true)) {
           throw new Error(`Local acquisition service is not running at ${serviceURL}. Enable auto-start in Paper Acquisition settings or start the service manually.`);
         }
       }

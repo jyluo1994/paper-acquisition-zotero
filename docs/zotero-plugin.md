@@ -45,16 +45,18 @@ Set:
 Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
 Default profile: your-local-profile
-Acquisition proxy: 127.0.0.1:7890
+Proxy mode: browser-profile
+Acquisition proxy: optional
 Proxy username: optional
 Proxy password: optional
 ```
 
 Then click `Start service`, or enable `Start the local service automatically when needed`.
 
-`Acquisition proxy` is optional. It is scoped to this plugin's PDF acquisition
-flow and does not change system proxy settings. Proxy username/password are
-stored as Zotero preferences.
+`Proxy mode` controls whether proxy routing is owned by the browser profile or
+by the plugin. Use `browser-profile` for Chrome/ZeroOmega-managed routes. Use
+`local` when the plugin should inject `Acquisition proxy` into the helper
+browser. Proxy username/password are stored as Zotero preferences.
 
 Manual terminal startup still works:
 
@@ -151,10 +153,10 @@ Use `Refresh login profile` to open the acquisition browser profile and log in
 to publisher, institutional, WebVPN, or SSO pages. These cookies are stored in
 the acquisition browser profile, not in Zotero item data.
 
-Chrome ZeroOmega data cannot be imported into Zotero because Zotero cannot run
-Chrome extensions. If a ZeroOmega node uses proxy authentication, copy the
-proxy host, port, username, and password into the plugin settings or local
-`service/profiles.json`.
+For Chrome/ZeroOmega routes, use `browser-profile` mode so the browser profile
+continues to manage proxy routing and credentials. For a direct helper-browser
+proxy, use `local` mode and put the proxy host, port, username, and password in
+the plugin settings or local `service/profiles.json`.
 
 ## Human Verification Flow
 
@@ -173,11 +175,15 @@ Automatic acquisition is off by default. Enable it in the plugin settings only a
 
 The automatic flow listens for newly added regular Zotero items, waits for the configured delay, then checks whether a PDF attachment already exists before enqueueing a job. This delay helps avoid conflicts with Zotero's built-in associated-file download or other PDF-acquisition plugins. If `Pause automatic acquisition while Zotero's built-in associated-file download is enabled` is on and Zotero's `downloadAssociatedFiles` preference is enabled, automatic acquisition stays paused.
 
-## Plugin-Level Proxy
+## Proxy Modes
 
-The `Acquisition proxy` setting is optional and scoped to this plugin's PDF
-acquisition flow. It is sent with `/api/acquire` and `/api/login` requests, and
-is also exported as `PAA_PROXY_SERVER` when Zotero auto-starts the service.
+`browser-profile` is the default. In this mode, the service does not pass
+`--proxy-server` to Chrome; proxy routing is handled by the Chrome profile,
+including extensions such as ZeroOmega.
+
+`local` mode is scoped to this plugin's PDF acquisition flow. It sends
+`Acquisition proxy` with `/api/acquire` and `/api/login` requests and injects
+it into the helper browser.
 
 Accepted examples:
 

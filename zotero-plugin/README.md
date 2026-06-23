@@ -61,18 +61,19 @@ The default service URL is:
 http://127.0.0.1:24372
 ```
 
-The `Acquisition proxy` setting is optional. Leave it empty to disable it, or
-set a local proxy such as `127.0.0.1:7890`. It applies only to this plugin's PDF
-acquisition flow and does not change system proxy settings. Proxy
-username/password are optional and are stored as Zotero preferences.
+`Proxy mode` controls routing. Use `browser-profile` when Chrome or an
+extension such as ZeroOmega manages the proxy. Use `local` when the plugin
+should inject `Acquisition proxy` into the helper browser. Neither mode changes
+system proxy settings. Proxy username/password are optional and are stored as
+Zotero preferences.
 
 Institution-specific profile names, login URLs, proxy notes, and browser
 profile details should live in the local service configuration rather than in
 public docs.
 
 Use `Refresh login profile` to open the acquisition browser profile and log in
-to publisher, institutional, WebVPN, or SSO pages. Chrome ZeroOmega data cannot
-be imported into Zotero because Zotero cannot run Chrome extensions.
+to publisher, institutional, WebVPN, or SSO pages. In `browser-profile` mode,
+Chrome profile settings and extensions handle the proxy route.
 
 During manual acquisition, publisher CAPTCHA, human verification, login walls,
 or missing PDF links can trigger a human-in-the-loop prompt. Complete the page

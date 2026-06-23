@@ -26,6 +26,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const puppeteer = require("puppeteer-core");
 
 const {
@@ -47,7 +48,14 @@ function normalizeDoi(raw) {
 }
 
 function inferProvider(url) {
-  const h = new URL(url).hostname.toLowerCase();
+  let h = "";
+  try {
+    h = new URL(url).hostname.toLowerCase();
+  }
+  catch {
+    return "generic";
+  }
+  if (h.includes("rsna.org")) return "rsna";
   if (h.includes("springer") || h.includes("nature")) return "springer";
   if (h.includes("wiley")) return "wiley";
   if (h.includes("sciencedirect") || h.includes("elsevier")) return "sciencedirect";
@@ -99,6 +107,10 @@ async function connectBrowser() {
       chromeArgs.push(`--proxy-bypass-list=${proxyBypassList}`);
     }
     chromeArgs.push("--new-window", "about:blank");
+    console.error(proxyServer
+      ? "[connect] Launching Chrome with command-line proxy."
+      : "[connect] Launching Chrome without command-line proxy; browser profile may manage proxy."
+    );
     const child = spawn(chromeBin, chromeArgs, { detached: true, stdio: "ignore" });
     child.unref();
 
@@ -180,13 +192,21 @@ async function inspectPage(page, provider) {
 
   // 查找 PDF 链接
   info.pdfUrl = await page.evaluate((prov) => {
+    const absolutize = (value) => {
+      try {
+        return new URL(value, document.baseURI).href;
+      }
+      catch {
+        return value || "";
+      }
+    };
     const links = Array.from(document.querySelectorAll("a[href]")).map(a => ({
       text: (a.innerText || "").trim().toLowerCase(),
-      href: a.href
+      href: absolutize(a.getAttribute("href") || a.href)
     }));
 
     const iframes = Array.from(document.querySelectorAll("iframe[src], embed[src], object[data]"))
-      .map(el => el.getAttribute("src") || el.getAttribute("data") || "");
+      .map(el => absolutize(el.getAttribute("src") || el.getAttribute("data") || ""));
 
     const all = [...links.map(l => l.href), ...iframes];
 
@@ -195,13 +215,15 @@ async function inspectPage(page, provider) {
       springer: [/\/content\/pdf\//i, /download.*pdf/i],
       wiley: [/\/doi\/pdf\//i, /\/doi\/epdf\//i, /\/doi\/pdfdirect\//i, /\.pdf(\?|$)/i],
       sciencedirect: [/\/pdfft\?/i, /view.*pdf/i],
-      generic: [/\.pdf(\?|#|$)/i],
+      rsna: [/\/doi\/pdf\//i, /\/doi\/epdf\//i, /\.pdf(\?|#|$)/i],
+      generic: [/\.pdf(\?|#|$)/i, /\/doi\/pdf\//i, /\/doi\/epdf\//i, /\/doi\/pdfdirect\//i, /\/pdf(?:[/?#]|$)/i, /download.*pdf/i],
     };
     const pats = patterns[prov] || patterns.generic;
+    const textPatterns = [/\bpdf\b/i, /full\s+text\s+pdf/i, /download\s+pdf/i, /view\s+pdf/i];
 
     // 1. 按链接文本匹配
     for (const l of links) {
-      if (pats.some(p => p.test(l.text))) return l.href;
+      if (textPatterns.some(p => p.test(l.text))) return l.href;
     }
     // 2. 按 href 匹配
     for (const href of all) {
@@ -230,6 +252,21 @@ function isHumanVerificationPage(body, title, url) {
     "suspicious traffic",
     "automated access"
   ].some((needle) => text.includes(needle));
+}
+
+function isPDFCandidateURL(url) {
+  const value = String(url || "");
+  return /\.pdf(?:[?#].*)?$/i.test(value) ||
+    /\/doi\/(?:e)?pdf\//i.test(value) ||
+    /\/doi\/pdfdirect\//i.test(value) ||
+    /\/pdfft\?/i.test(value);
+}
+
+function outputName(doi, articleUrl) {
+  if (doi) {
+    return `doi-${doi.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}.pdf`;
+  }
+  return `url-${crypto.createHash("md5").update(articleUrl).digest("hex").slice(0, 12)}.pdf`;
 }
 
 async function downloadPdf(page, pdfUrl, dir, name) {
@@ -273,27 +310,47 @@ async function downloadPdf(page, pdfUrl, dir, name) {
 }
 
 async function main() {
-  const input = process.argv[2];
+  const input = String(process.argv[2] || "").trim();
   if (!input) {
     console.error("Usage: node browser-fallback.js <doi-or-url>");
     process.exit(2);
   }
 
-  const doi = normalizeDoi(input);
+  const inputIsURL = /^https?:\/\//i.test(input);
+  const doi = inputIsURL ? null : normalizeDoi(input);
   const browser = await connectBrowser();
 
   let page = null;
   let keepPageOpen = false;
+  let articleUrl = "";
+  let provider = "generic";
+  let info = null;
   try {
-    const articleUrl = doi ? await resolveDoi(browser, doi) : input;
-    const provider = inferProvider(articleUrl);
-
+    articleUrl = doi ? await resolveDoi(browser, doi) : input;
     page = await newPage(browser);
+
+    if (isPDFCandidateURL(articleUrl)) {
+      provider = inferProvider(articleUrl);
+      const result = await downloadPdf(page, articleUrl, OUTPUT, outputName(doi, articleUrl));
+      console.log(JSON.stringify({
+        status: "ok",
+        doi,
+        title: "",
+        provider,
+        pdf_path: result.filePath,
+        size: result.size,
+        access_mode: "direct_pdf"
+      }));
+      return;
+    }
+
     await page.setDefaultNavigationTimeout(120000);
     await page.goto(articleUrl, { waitUntil: "domcontentloaded" });
     await sleep(6000);
 
-    const info = await inspectPage(page, provider);
+    provider = inferProvider(page.url() || articleUrl);
+    info = await inspectPage(page, provider);
+    console.error(`[inspect] provider=${provider} access=${info.accessMode} pdf=${info.pdfUrl || ""} url=${info.currentUrl || articleUrl}`);
 
     if (info.unavailable) {
       console.log(JSON.stringify({ status: "article_unavailable", title: info.title, url: info.currentUrl || articleUrl, article_url: articleUrl }));
@@ -323,24 +380,7 @@ async function main() {
       }));
       return;
     }
-    if (info.accessMode === "unknown") {
-      keepPageOpen = true;
-      console.log(JSON.stringify({
-        status: "no_institutional_access",
-        title: info.title,
-        url: info.currentUrl || articleUrl,
-        article_url: articleUrl,
-        pdf_url: info.pdfUrl,
-        provider
-      }));
-      return;
-    }
-
-    const safeId = doi
-      ? `doi-${doi.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`
-      : `url-${require("crypto").createHash("md5").update(articleUrl).digest("hex").slice(0, 12)}`;
-
-    const result = await downloadPdf(page, info.pdfUrl, OUTPUT, `${safeId}.pdf`);
+    const result = await downloadPdf(page, info.pdfUrl, OUTPUT, outputName(doi, articleUrl));
 
     console.log(JSON.stringify({
       status: "ok",
@@ -357,7 +397,19 @@ async function main() {
     const status = err.message.startsWith("download_failed") ? "download_failed"
       : err.message.includes("human_verification") ? "human_verification_required"
       : err.message;
-    console.log(JSON.stringify({ status, error: err.message }));
+    if (status === "download_failed") {
+      keepPageOpen = true;
+    }
+    console.log(JSON.stringify({
+      status,
+      error: err.message,
+      title: info && info.title,
+      url: page ? page.url() : articleUrl,
+      article_url: articleUrl,
+      pdf_url: info && info.pdfUrl,
+      provider,
+      access_mode: info && info.accessMode
+    }));
     process.exitCode = 1;
   } finally {
     if (page && !keepPageOpen) await page.close().catch(() => {});

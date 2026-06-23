@@ -3,6 +3,7 @@ pref("extensions.paperAcquisitionAntiScrape.autoStartService", false);
 pref("extensions.paperAcquisitionAntiScrape.serviceWorkingDirectory", "");
 pref("extensions.paperAcquisitionAntiScrape.serviceStartCommand", "npm start");
 pref("extensions.paperAcquisitionAntiScrape.defaultProfile", "auto");
+pref("extensions.paperAcquisitionAntiScrape.proxyMode", "browser-profile");
 pref("extensions.paperAcquisitionAntiScrape.proxyServer", "");
 pref("extensions.paperAcquisitionAntiScrape.proxyUsername", "");
 pref("extensions.paperAcquisitionAntiScrape.proxyPassword", "");

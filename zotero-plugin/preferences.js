@@ -56,6 +56,11 @@ var PaperAcquisitionPreferences = {
     return String(this.pref("proxyServer", "") || "").trim();
   },
 
+  proxyMode() {
+    const mode = String(this.pref("proxyMode", "browser-profile") || "browser-profile").trim().toLowerCase();
+    return mode === "local" ? "local" : "browser-profile";
+  },
+
   proxyUsername() {
     return String(this.pref("proxyUsername", "") || "").trim();
   },
@@ -69,8 +74,11 @@ var PaperAcquisitionPreferences = {
     const response = await fetch(`${this.serviceURL()}/health`);
     const data = await this.parseResponse(response);
     const profiles = Array.isArray(data.profiles) ? data.profiles.join(", ") : "unknown";
-    const proxy = this.proxyServer() ? "plugin proxy configured" : "plugin proxy off";
-    const auth = this.proxyUsername() ? "proxy auth configured" : "proxy auth off";
+    const mode = this.proxyMode();
+    const proxy = mode === "local"
+      ? (this.proxyServer() ? "local proxy configured" : "local proxy mode, proxy empty")
+      : "browser profile proxy mode";
+    const auth = mode === "local" && this.proxyUsername() ? "proxy auth configured" : "proxy auth off";
     this.setStatus(`Service OK. Download dir: ${data.downloadDir || "unknown"}. Profiles: ${profiles}. ${proxy}. ${auth}.`);
   },
 
@@ -87,17 +95,21 @@ var PaperAcquisitionPreferences = {
       body: JSON.stringify(this.requestOptions())
     });
     const data = await this.parseResponse(response);
+    const mode = data.proxyMode ? ` Proxy mode: ${data.proxyMode}.` : "";
     const proxy = data.proxyServer ? ` Proxy: ${data.proxyServer}.` : "";
     const auth = data.proxyAuthConfigured ? " Proxy auth configured." : "";
-    this.setStatus(`Opened ${data.label || data.profile || profile}. CDP: ${data.cdpURL || "unknown"}.${proxy}${auth}`);
+    this.setStatus(`Opened ${data.label || data.profile || profile}. CDP: ${data.cdpURL || "unknown"}.${mode}${proxy}${auth}`);
   },
 
   requestOptions() {
-    return {
-      proxyServer: this.proxyServer(),
-      proxyUsername: this.proxyUsername(),
-      proxyPassword: this.proxyPassword()
-    };
+    const proxyMode = this.proxyMode();
+    const options = { proxyMode };
+    if (proxyMode === "local") {
+      options.proxyServer = this.proxyServer();
+      options.proxyUsername = this.proxyUsername();
+      options.proxyPassword = this.proxyPassword();
+    }
+    return options;
   },
 
   async startService() {

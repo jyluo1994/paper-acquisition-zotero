@@ -57,14 +57,15 @@ Recommended settings:
 Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
 Default profile: your-local-profile
-Acquisition proxy: 127.0.0.1:7890
+Proxy mode: browser-profile
+Acquisition proxy: optional
 Proxy username: optional
 Proxy password: optional
 ```
 
 Enable `Start the local service automatically when needed` if you want Zotero to start the helper service for you.
 
-`Acquisition proxy` is optional. Leave it empty to disable the plugin-level proxy. When set, it is passed only to this plugin's local service and browser fallback; it does not change macOS system proxy settings.
+`Proxy mode` controls where proxy routing happens. Use `browser-profile` when a Chrome profile or extension such as ZeroOmega manages routing. Use `local` when the plugin should inject `Acquisition proxy` into the helper browser. Neither mode changes macOS system proxy settings.
 
 Proxy username/password are optional and are stored as Zotero preferences. Prefer a localhost proxy that already handles remote-node credentials when possible.
 
@@ -99,10 +100,10 @@ profile details in your local `service/profiles.json`.
 
 Use `Refresh login profile` to open the acquisition browser profile and log in
 to publisher, institutional, WebVPN, or SSO pages. These browser cookies are
-stored outside Zotero under the local acquisition browser profile. Chrome
-ZeroOmega profiles cannot be imported into Zotero because Zotero cannot run
-Chrome extensions; copy the proxy host, port, username, and password into the
-plugin settings or into local service configuration instead.
+stored outside Zotero under the local acquisition browser profile. When using
+`browser-profile` mode, Chrome profile settings and extensions handle the proxy
+route. When using `local` mode, copy the proxy host, port, username, and
+password into the plugin settings or into local service configuration instead.
 
 If acquisition hits a publisher verification page, CAPTCHA, missing PDF link,
 or institutional login wall during manual right-click acquisition, Zotero opens

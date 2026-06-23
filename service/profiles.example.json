@@ -1,5 +1,16 @@
 {
   "profiles": {
+    "auto": {
+      "label": "Chrome ZeroOmega kokonur",
+      "loginUrl": "https://doi.org/",
+      "cdpPort": 9222,
+      "browserURL": "http://127.0.0.1:9222",
+      "browserUserDataDir": "~/Library/Application Support/Google/Chrome",
+      "chromeProfileDirectory": "Default",
+      "zeroOmegaProfile": "kokonur",
+      "proxyMode": "browser-profile",
+      "notes": "Uses the user's Chrome Default profile and lets ZeroOmega handle proxy routing."
+    },
     "pumc-webvpn": {
       "label": "PUMC academic proxy via Chrome ZeroOmega kokonur",
       "loginUrl": "https://doi.org/",
@@ -8,6 +19,7 @@
       "browserUserDataDir": "~/Library/Application Support/Google/Chrome",
       "chromeProfileDirectory": "Default",
       "zeroOmegaProfile": "kokonur",
+      "proxyMode": "browser-profile",
       "notes": "Uses the user's existing Chrome ZeroOmega profile named kokonur. No proxy credentials are stored here."
     },
     "pumc-kokonur-zeroomega": {
@@ -18,6 +30,7 @@
       "browserUserDataDir": "~/Library/Application Support/Google/Chrome",
       "chromeProfileDirectory": "Default",
       "zeroOmegaProfile": "kokonur",
+      "proxyMode": "browser-profile",
       "notes": "Alias for pumc-webvpn. Start Chrome with this profile and select kokonur in ZeroOmega before acquisition."
     },
     "pumc-webvpn-legacy": {

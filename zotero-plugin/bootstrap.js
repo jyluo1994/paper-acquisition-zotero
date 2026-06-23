@@ -367,7 +367,7 @@ var PaperAcquisitionAntiScrape;
     finishProgress(progress, summary) {
       if (!progress) return;
       progress.changeHeadline("Paper Acquisition 完成", "attachment-pdf");
-      progress.addDescription(this.formatSummary(summary).replace(/\n/g, "<br/>"));
+      progress.addDescription(this.formatSummary(summary));
       progress.startCloseTimer(8000);
     },
 
@@ -531,6 +531,7 @@ var PaperAcquisitionAntiScrape;
           `Label: ${result.label || "unknown"}`,
           `Login URL: ${result.loginUrl || "unknown"}`,
           `CDP: ${result.cdpURL || "unknown"}`,
+          `Proxy mode: ${result.proxyMode || this.getProxyMode()}`,
           `Proxy: ${result.proxyServer || "not configured"}`,
           `Proxy auth: ${result.proxyAuthConfigured ? "configured" : "not configured"}`,
           `Browser profile: ${result.userDataDir || "unknown"}`
@@ -574,7 +575,7 @@ var PaperAcquisitionAntiScrape;
         return "cooldown";
       }
 
-      if (status === "human_verification_required" || status === "captcha_stop" || status === "no_pdf_link_found") {
+      if (status === "human_verification_required" || status === "captcha_stop" || status === "no_pdf_link_found" || status === "download_failed") {
         if (await this.tryManualIntervention(item, result, profile, mode, options, "captchaStop")) {
           return "acquired";
         }
@@ -595,18 +596,6 @@ var PaperAcquisitionAntiScrape;
       if (mode !== "manual" || options.manualRetry) return false;
       const win = options.window || this.getMainWindow();
       const url = this.manualURL(result, item);
-      const message = [
-        "需要人工完成网页验证、验证码、机构登录或出版商确认页。",
-        "",
-        "我会打开获取用的浏览器 profile。",
-        "请在浏览器里完成验证/登录后，回到 Zotero 点 OK 继续重试。",
-        "",
-        `URL: ${url || "profile default"}`
-      ].join("\n");
-
-      if (!this.confirm(win, "Paper Acquisition", message)) {
-        return false;
-      }
 
       try {
         await this.openManualIntervention(profile, url);
@@ -619,7 +608,16 @@ var PaperAcquisitionAntiScrape;
       const done = this.confirm(
         win,
         "Paper Acquisition",
-        "完成验证码/登录/确认页后点击 OK，我会重新获取这篇 PDF。\n\n如果还没完成，点 Cancel，条目会标记为需要人工验证。"
+        [
+          "我已经打开获取用的浏览器页面。",
+          "",
+          "请在浏览器里完成验证码、机构登录或出版商确认页。",
+          "完成后点击 OK，我会重新获取这篇 PDF。",
+          "",
+          "如果还没完成，点 Cancel，条目会标记为需要人工验证。",
+          "",
+          `URL: ${url || "profile default"}`
+        ].join("\n")
       );
       if (!done) return false;
 
@@ -796,20 +794,9 @@ var PaperAcquisitionAntiScrape;
       }
 
       const logPath = "$HOME/.paper-acquisition/service.log";
-      const proxyServer = this.getProxyServer();
       const envLines = [
         "export PATH=\"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH\""
       ];
-      if (proxyServer) {
-        envLines.push(`export PAA_PROXY_SERVER=${this.shellQuote(proxyServer)}`);
-        envLines.push(`export CHROME_PROXY_SERVER=${this.shellQuote(proxyServer)}`);
-      }
-      const proxyUsername = this.getProxyUsername();
-      const proxyPassword = this.getProxyPassword();
-      if (proxyUsername || proxyPassword) {
-        envLines.push(`export PAA_PROXY_USERNAME=${this.shellQuote(proxyUsername)}`);
-        envLines.push(`export PAA_PROXY_PASSWORD=${this.shellQuote(proxyPassword)}`);
-      }
       const script = [
         `cd ${this.shellQuote(cwd)}`,
         "mkdir -p \"$HOME/.paper-acquisition\"",
@@ -853,6 +840,11 @@ var PaperAcquisitionAntiScrape;
       return String(this.getPref("proxyServer", "") || "").trim();
     },
 
+    getProxyMode() {
+      const mode = String(this.getPref("proxyMode", "browser-profile") || "browser-profile").trim().toLowerCase();
+      return mode === "local" ? "local" : "browser-profile";
+    },
+
     getProxyUsername() {
       return String(this.getPref("proxyUsername", "") || "").trim();
     },
@@ -862,11 +854,14 @@ var PaperAcquisitionAntiScrape;
     },
 
     proxyPayload() {
-      return {
-        proxyServer: this.getProxyServer(),
-        proxyUsername: this.getProxyUsername(),
-        proxyPassword: this.getProxyPassword()
-      };
+      const proxyMode = this.getProxyMode();
+      const payload = { proxyMode };
+      if (proxyMode === "local") {
+        payload.proxyServer = this.getProxyServer();
+        payload.proxyUsername = this.getProxyUsername();
+        payload.proxyPassword = this.getProxyPassword();
+      }
+      return payload;
     },
 
     openSettings() {

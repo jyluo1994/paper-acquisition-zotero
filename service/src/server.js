@@ -55,12 +55,30 @@ function readBody(req) {
 }
 
 function cleanIdentifier(body) {
-  const candidates = [body.doi, body.url, body.identifier].filter(Boolean);
+  const url = String(body.url || "").trim();
+  const doi = String(body.doi || "").trim();
+  const identifier = String(body.identifier || "").trim();
+  const candidates = [];
+  if (url && isNonDoiHttpURL(url)) candidates.push(url);
+  if (doi) candidates.push(doi);
+  if (url) candidates.push(url);
+  if (identifier) candidates.push(identifier);
   for (const value of candidates) {
     const normalized = String(value).trim();
     if (normalized) return normalized;
   }
   return "";
+}
+
+function isNonDoiHttpURL(value) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return /^https?:$/i.test(url.protocol) && host !== "doi.org" && host !== "dx.doi.org";
+  }
+  catch {
+    return false;
+  }
 }
 
 function makeJob(body) {
@@ -94,10 +112,12 @@ function updateJob(job, patch) {
 
 async function runAcquireJob(job, body) {
   updateJob(job, { status: "running" });
-  const profileConfig = getProfile(body.profile || "auto");
-  const proxyServer = resolveProxyServer(body, profileConfig);
-  const proxyBypassList = resolveProxyBypassList(body, profileConfig);
-  const proxyAuth = resolveProxyAuth(body, profileConfig);
+  const profileName = safeProfileName(body.profile || "auto");
+  const profileConfig = getProfile(profileName);
+  const proxyMode = resolveProxyMode(body, profileConfig);
+  const proxyServer = proxyMode === "local" ? resolveProxyServer(body, profileConfig) : "";
+  const proxyBypassList = proxyMode === "local" ? resolveProxyBypassList(body, profileConfig) : "";
+  const proxyAuth = proxyMode === "local" ? resolveProxyAuth(body, profileConfig) : {};
 
   const identifier = cleanIdentifier(body);
   if (!identifier) {
@@ -135,7 +155,7 @@ async function runAcquireJob(job, body) {
     BROWSER_URL: profileConfig.browserURL || process.env.BROWSER_URL || "http://127.0.0.1:9222",
     CDP_PORT: String(profileConfig.cdpPort || process.env.CDP_PORT || 9222),
     CHROME_BIN: process.env.CHROME_BIN || detectChrome(),
-    CHROME_USER_DATA_DIR: expandPath(profileConfig.browserUserDataDir || process.env.CHROME_USER_DATA_DIR || ""),
+    CHROME_USER_DATA_DIR: browserUserDataDirFor(profileName, profileConfig),
     CHROME_PROFILE_DIRECTORY: profileConfig.chromeProfileDirectory || process.env.CHROME_PROFILE_DIRECTORY || "",
     ...proxyEnv(proxyServer, proxyBypassList, proxyAuth)
   };
@@ -168,9 +188,10 @@ async function runAcquireJob(job, body) {
 
 async function runFastCommand(identifier, body, profileConfig) {
   const command = renderFastCommand(FAST_COMMAND, identifier, body);
-  const proxyServer = resolveProxyServer(body, profileConfig);
-  const proxyBypassList = resolveProxyBypassList(body, profileConfig);
-  const proxyAuth = resolveProxyAuth(body, profileConfig);
+  const proxyMode = resolveProxyMode(body, profileConfig);
+  const proxyServer = proxyMode === "local" ? resolveProxyServer(body, profileConfig) : "";
+  const proxyBypassList = proxyMode === "local" ? resolveProxyBypassList(body, profileConfig) : "";
+  const proxyAuth = proxyMode === "local" ? resolveProxyAuth(body, profileConfig) : {};
   const result = await spawnJSON("/bin/sh", ["-lc", command], {
     cwd: REPO_ROOT,
     env: {
@@ -344,6 +365,16 @@ function resolveProxyServer(body = {}, profileConfig = {}) {
   );
 }
 
+function resolveProxyMode(body = {}, profileConfig = {}) {
+  const raw = String(
+    body.proxyMode ||
+    profileConfig.proxyMode ||
+    process.env.PAA_PROXY_MODE ||
+    "browser-profile"
+  ).trim().toLowerCase();
+  return raw === "local" ? "local" : "browser-profile";
+}
+
 function resolveProxyBypassList(body = {}, profileConfig = {}) {
   return String(
     body.proxyBypassList ||
@@ -456,6 +487,17 @@ function expandPath(value) {
     .replace(/\$HOME/g, os.homedir());
 }
 
+function browserUserDataDirFor(profile, profileConfig = {}) {
+  if (profileConfig.browserUserDataDir) {
+    return expandPath(profileConfig.browserUserDataDir);
+  }
+  if (process.env.CHROME_USER_DATA_DIR) {
+    return expandPath(process.env.CHROME_USER_DATA_DIR);
+  }
+  const profileDir = safeProfileName(profileConfig.profileDir || profile || "auto");
+  return path.join(PROFILES_DIR, profileDir, "chrome");
+}
+
 async function startLoginProfile(profile, body) {
   const safeProfile = safeProfileName(profile);
   const profileConfig = getProfile(safeProfile);
@@ -464,17 +506,15 @@ async function startLoginProfile(profile, body) {
     throw new Error("Chrome/Chromium was not found. Set CHROME_BIN to enable profile login.");
   }
 
-  const profileDir = safeProfileName(profileConfig.profileDir || safeProfile);
-  const userDataDir = profileConfig.browserUserDataDir
-    ? expandPath(profileConfig.browserUserDataDir)
-    : path.join(PROFILES_DIR, profileDir, "chrome");
+  const userDataDir = browserUserDataDirFor(safeProfile, profileConfig);
   fs.mkdirSync(userDataDir, { recursive: true });
 
   const port = Number(body.cdpPort || profileConfig.cdpPort || process.env.CDP_PORT || 9222);
   const startURL = body.loginUrl || profileConfig.loginUrl || "about:blank";
-  const proxyServer = resolveProxyServer(body, profileConfig);
-  const proxyBypassList = resolveProxyBypassList(body, profileConfig);
-  const proxyAuth = resolveProxyAuth(body, profileConfig);
+  const proxyMode = resolveProxyMode(body, profileConfig);
+  const proxyServer = proxyMode === "local" ? resolveProxyServer(body, profileConfig) : "";
+  const proxyBypassList = proxyMode === "local" ? resolveProxyBypassList(body, profileConfig) : "";
+  const proxyAuth = proxyMode === "local" ? resolveProxyAuth(body, profileConfig) : {};
   const chromeArgs = [
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
@@ -498,18 +538,53 @@ async function startLoginProfile(profile, body) {
   });
   child.unref();
 
+  const cdpURL = `http://127.0.0.1:${port}`;
+  const cdpReady = await waitForCDP(cdpURL, 10000);
+  if (!cdpReady) {
+    throw new Error(
+      `Chrome did not expose remote debugging at ${cdpURL}. ` +
+      "If this profile is already open in Chrome, close Chrome and retry, or use local proxy mode."
+    );
+  }
+
   return {
     status: "ok",
     profile: safeProfile,
     label: profileConfig.label || safeProfile,
-    cdpURL: `http://127.0.0.1:${port}`,
+    cdpURL,
     userDataDir,
     loginUrl: startURL,
     chromeProfileDirectory: profileConfig.chromeProfileDirectory || "",
     zeroOmegaProfile: profileConfig.zeroOmegaProfile || "",
+    proxyMode,
     proxyServer: maskProxyServer(proxyServer),
     proxyAuthConfigured: !!(proxyAuth.username || proxyAuth.password)
   };
+}
+
+async function waitForCDP(cdpURL, timeoutMS) {
+  const deadline = Date.now() + timeoutMS;
+  while (Date.now() < deadline) {
+    if (await canReadJSON(`${cdpURL.replace(/\/+$/, "")}/json/version`)) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return false;
+}
+
+function canReadJSON(url) {
+  return new Promise((resolve) => {
+    const req = http.get(url, (res) => {
+      res.resume();
+      resolve(res.statusCode >= 200 && res.statusCode < 300);
+    });
+    req.setTimeout(1000, () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.on("error", () => resolve(false));
+  });
 }
 
 function detectChrome() {
@@ -544,7 +619,8 @@ async function handle(req, res) {
       service: "paper-acquisition-zotero-service",
       browserFallback: BROWSER_FALLBACK,
       downloadDir: DOWNLOAD_DIR,
-      proxyConfigured: !!resolveProxyServer(),
+      proxyMode: resolveProxyMode(),
+      proxyConfigured: resolveProxyMode() === "local" && !!resolveProxyServer(),
       profiles: Object.keys(PROFILE_CONFIG)
     });
     return;

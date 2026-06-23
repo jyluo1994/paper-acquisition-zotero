@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.venv/
 *.xpi
 .DS_Store
 service/profiles.json

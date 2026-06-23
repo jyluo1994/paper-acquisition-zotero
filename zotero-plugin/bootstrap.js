@@ -646,7 +646,8 @@ var PaperAcquisitionAntiScrape;
       const serviceURL = this.getServiceURL();
       await this.ensureServiceAvailable(serviceURL);
       const body = {
-        ...this.proxyPayload()
+        ...this.proxyPayload(),
+        reuseOpenPage: true
       };
       if (url) body.loginUrl = url;
       await this.postJSON(`${serviceURL}/api/login/${encodeURIComponent(profile || this.getDefaultProfile())}`, body);

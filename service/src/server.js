@@ -513,6 +513,27 @@ async function startLoginProfile(profile, body) {
   const proxyServer = proxyMode === "local" ? resolveProxyServer(body, profileConfig) : "";
   const proxyBypassList = proxyMode === "local" ? resolveProxyBypassList(body, profileConfig) : "";
   const proxyAuth = proxyMode === "local" ? resolveProxyAuth(body, profileConfig) : {};
+  const cdpURL = `http://127.0.0.1:${port}`;
+
+  if (body.reuseOpenPage && startURL && startURL !== "about:blank") {
+    const openPage = await findOpenPage(cdpURL, startURL);
+    if (openPage) {
+      await activateOpenPage(cdpURL, openPage.id);
+      return loginProfileResult({
+        safeProfile,
+        profileConfig,
+        cdpURL,
+        userDataDir,
+        startURL,
+        proxyMode,
+        proxyServer,
+        proxyAuth,
+        reusedOpenPage: true,
+        openPageURL: openPage.url || ""
+      });
+    }
+  }
+
   const chromeArgs = [
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
@@ -536,7 +557,6 @@ async function startLoginProfile(profile, body) {
   });
   child.unref();
 
-  const cdpURL = `http://127.0.0.1:${port}`;
   const cdpReady = await waitForCDP(cdpURL, 10000);
   if (!cdpReady) {
     throw new Error(
@@ -545,6 +565,30 @@ async function startLoginProfile(profile, body) {
     );
   }
 
+  return loginProfileResult({
+    safeProfile,
+    profileConfig,
+    cdpURL,
+    userDataDir,
+    startURL,
+    proxyMode,
+    proxyServer,
+    proxyAuth
+  });
+}
+
+function loginProfileResult({
+  safeProfile,
+  profileConfig,
+  cdpURL,
+  userDataDir,
+  startURL,
+  proxyMode,
+  proxyServer,
+  proxyAuth,
+  reusedOpenPage = false,
+  openPageURL = ""
+}) {
   return {
     status: "ok",
     profile: safeProfile,
@@ -556,8 +600,46 @@ async function startLoginProfile(profile, body) {
     zeroOmegaProfile: profileConfig.zeroOmegaProfile || "",
     proxyMode,
     proxyServer: maskProxyServer(proxyServer),
-    proxyAuthConfigured: !!(proxyAuth.username || proxyAuth.password)
+    proxyAuthConfigured: !!(proxyAuth.username || proxyAuth.password),
+    reusedOpenPage,
+    openPageURL
   };
+}
+
+async function findOpenPage(cdpURL, targetURL) {
+  const pages = await readCDPPages(cdpURL);
+  return pages.find((page) => page.type === "page" && samePageURL(page.url, targetURL)) || null;
+}
+
+async function readCDPPages(cdpURL) {
+  const pages = await readJSON(`${cdpURL.replace(/\/+$/, "")}/json/list`);
+  return Array.isArray(pages) ? pages : [];
+}
+
+function samePageURL(openURL, targetURL) {
+  const open = comparableURL(openURL);
+  const target = comparableURL(targetURL);
+  if (!open || !target) return false;
+  return open === target || open.replace(/\/+$/, "") === target.replace(/\/+$/, "");
+}
+
+function comparableURL(value) {
+  try {
+    const url = new URL(String(value || ""));
+    url.hash = "";
+    if (url.pathname !== "/") {
+      url.pathname = url.pathname.replace(/\/+$/, "");
+    }
+    return url.toString();
+  }
+  catch {
+    return String(value || "").trim().replace(/#.*$/, "").replace(/\/+$/, "");
+  }
+}
+
+async function activateOpenPage(cdpURL, pageId) {
+  if (!pageId) return false;
+  return requestOK(`${cdpURL.replace(/\/+$/, "")}/json/activate/${encodeURIComponent(pageId)}`);
 }
 
 async function waitForCDP(cdpURL, timeoutMS) {
@@ -572,16 +654,58 @@ async function waitForCDP(cdpURL, timeoutMS) {
 }
 
 function canReadJSON(url) {
+  return readJSON(url).then((data) => !!data);
+}
+
+function readJSON(url) {
   return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
     const req = http.get(url, (res) => {
-      res.resume();
-      resolve(res.statusCode >= 200 && res.statusCode < 300);
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          finish(null);
+          return;
+        }
+        try {
+          finish(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+        }
+        catch {
+          finish(null);
+        }
+      });
     });
     req.setTimeout(1000, () => {
       req.destroy();
-      resolve(false);
+      finish(null);
     });
-    req.on("error", () => resolve(false));
+    req.on("error", () => finish(null));
+  });
+}
+
+function requestOK(url) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    const req = http.get(url, (res) => {
+      res.resume();
+      finish(res.statusCode >= 200 && res.statusCode < 300);
+    });
+    req.setTimeout(1000, () => {
+      req.destroy();
+      finish(false);
+    });
+    req.on("error", () => finish(false));
   });
 }
 

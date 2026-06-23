@@ -291,10 +291,13 @@ async function downloadPdf(page, pdfUrl, dir, name, depth = 0) {
     const ct = (response.headers()["content-type"] || "").toLowerCase();
     if (ct.includes("application/pdf")) {
       const buffer = await response.buffer();
-      const filePath = path.join(dir, name);
-      fs.writeFileSync(filePath, buffer);
-      console.error(`[download] CDP direct: ${filePath} (${buffer.length} bytes)`);
-      return { filePath, size: buffer.length };
+      if (isPDFBuffer(buffer)) {
+        const filePath = path.join(dir, name);
+        fs.writeFileSync(filePath, buffer);
+        console.error(`[download] CDP direct: ${filePath} (${buffer.length} bytes)`);
+        return { filePath, size: buffer.length };
+      }
+      console.error(`[download] Ignoring non-PDF Chrome viewer response (${buffer.length} bytes).`);
     }
   }
 
@@ -333,6 +336,16 @@ async function downloadPdf(page, pdfUrl, dir, name, depth = 0) {
   throw new Error("download_failed: timed out waiting for PDF");
 }
 
+function isPDFBuffer(buffer) {
+  return Buffer.isBuffer(buffer) &&
+    buffer.length >= 5 &&
+    buffer[0] === 0x25 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x44 &&
+    buffer[3] === 0x46 &&
+    buffer[4] === 0x2d;
+}
+
 async function fetchPdfInPage(page, pdfUrl) {
   try {
     const result = await page.evaluate(async (url) => {
@@ -340,8 +353,11 @@ async function fetchPdfInPage(page, pdfUrl) {
       const contentType = (response.headers.get("content-type") || "").toLowerCase();
       const arrayBuffer = await response.arrayBuffer();
       const bytes = new Uint8Array(arrayBuffer);
-      const isPdf = contentType.includes("application/pdf") ||
-        (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46);
+      const isPdf = bytes[0] === 0x25 &&
+        bytes[1] === 0x50 &&
+        bytes[2] === 0x44 &&
+        bytes[3] === 0x46 &&
+        bytes[4] === 0x2d;
       if (!response.ok || !isPdf) {
         return {
           ok: false,

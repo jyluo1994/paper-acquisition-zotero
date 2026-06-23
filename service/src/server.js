@@ -15,6 +15,8 @@ const DEFAULT_DOWNLOAD_DIR = path.join(os.homedir(), ".paper-acquisition", "down
 const DOWNLOAD_DIR = path.resolve(process.env.PAA_DOWNLOAD_DIR || DEFAULT_DOWNLOAD_DIR);
 const PROFILES_DIR = path.resolve(process.env.PAA_PROFILES_DIR || path.join(os.homedir(), ".paper-acquisition", "profiles"));
 const BROWSER_FALLBACK = path.resolve(process.env.PAA_BROWSER_FALLBACK || path.join(REPO_ROOT, "scripts", "browser-fallback.js"));
+const CAMOUFOX_FALLBACK = path.resolve(process.env.PAA_CAMOUFOX_FALLBACK || path.join(REPO_ROOT, "scripts", "camoufox-acquire.py"));
+const PYTHON_BIN = process.env.PAA_PYTHON_BIN || process.env.PYTHON_BIN || detectPython();
 const FAST_COMMAND = process.env.PAA_FAST_COMMAND || "";
 const PROFILE_CONFIG = loadProfileConfig();
 
@@ -102,7 +104,9 @@ function sanitizeRequest(body) {
     title: body.title || "",
     url: body.url || "",
     profile: body.profile || "auto",
-    mode: body.mode || "manual"
+    mode: body.mode || "manual",
+    browserEngine: body.browserEngine || "",
+    cookieSyncDomains: body.cookieSyncDomains ? "[configured]" : ""
   };
 }
 
@@ -150,44 +154,220 @@ async function runAcquireJob(job, body) {
   }
 
   const browserMode = body.useExistingBrowser ? "existing" : "background";
-  const env = {
-    ...process.env,
-    OUTPUT_DIR: DOWNLOAD_DIR,
-    BROWSER_URL: profileConfig.browserURL || process.env.BROWSER_URL || "http://127.0.0.1:9222",
-    CDP_PORT: String(profileConfig.cdpPort || process.env.CDP_PORT || 9222),
-    CHROME_BIN: process.env.CHROME_BIN || detectChrome(),
-    CHROME_USER_DATA_DIR: browserUserDataDirFor(profileName, profileConfig),
-    CHROME_PROFILE_DIRECTORY: profileConfig.chromeProfileDirectory || process.env.CHROME_PROFILE_DIRECTORY || "",
-    PAA_BROWSER_MODE: browserMode,
-    PAA_USE_EXISTING_BROWSER: body.useExistingBrowser ? "1" : "",
-    ...proxyEnv(proxyServer, proxyBypassList, proxyAuth)
-  };
+  const browserEngine = body.useExistingBrowser ? "chrome" : resolveBrowserEngine(body, profileConfig);
+  const cookieSyncDomains = browserMode === "background" ? resolveCookieSyncDomains(body, profileConfig) : [];
+  const cookieJar = await createCookieJar(body, profileName, profileConfig, cookieSyncDomains);
 
-  const result = await spawnJSON(process.execPath, [BROWSER_FALLBACK, identifier], {
+  try {
+    const env = {
+      ...process.env,
+      OUTPUT_DIR: DOWNLOAD_DIR,
+      BROWSER_URL: profileConfig.browserURL || process.env.BROWSER_URL || "http://127.0.0.1:9222",
+      CDP_PORT: String(profileConfig.cdpPort || process.env.CDP_PORT || 9222),
+      CHROME_BIN: process.env.CHROME_BIN || detectChrome(),
+      CHROME_USER_DATA_DIR: browserUserDataDirFor(profileName, profileConfig),
+      CHROME_PROFILE_DIRECTORY: profileConfig.chromeProfileDirectory || process.env.CHROME_PROFILE_DIRECTORY || "",
+      CAMOUFOX_USER_DATA_DIR: camoufoxUserDataDirFor(profileName, profileConfig),
+      PAA_BROWSER_MODE: browserMode,
+      PAA_BROWSER_ENGINE: browserEngine,
+      PAA_USE_EXISTING_BROWSER: body.useExistingBrowser ? "1" : "",
+      PAA_COOKIE_SYNC_DOMAINS: cookieSyncDomains.join(","),
+      PAA_COOKIE_JAR: cookieJar && cookieJar.path ? cookieJar.path : "",
+      ...proxyEnv(proxyServer, proxyBypassList, proxyAuth)
+    };
+
+    const attempts = [];
+    if (shouldTryCamoufox(browserEngine) && fs.existsSync(CAMOUFOX_FALLBACK)) {
+      const camoufox = await runBrowserCommand(PYTHON_BIN, [CAMOUFOX_FALLBACK, identifier], env);
+      const terminal = terminalBrowserResult(camoufox, "camoufox");
+      if (terminal.terminal) {
+        updateJob(job, {
+          ...terminal.patch,
+          browserEngine: "camoufox",
+          cookieSync: cookieJarSummary(cookieJar)
+        });
+        return;
+      }
+      attempts.push(nonTerminalAttempt(camoufox, "camoufox"));
+    }
+
+    const chrome = await runBrowserCommand(process.execPath, [BROWSER_FALLBACK, identifier], env);
+    const terminal = terminalBrowserResult(chrome, "chrome");
+    updateJob(job, {
+      ...terminal.patch,
+      browserEngine: terminal.patch.browserEngine || "chrome",
+      browserAttempts: attempts.length ? attempts : undefined,
+      cookieSync: cookieJarSummary(cookieJar)
+    });
+  }
+  finally {
+    if (cookieJar && cookieJar.path) {
+      fs.rmSync(cookieJar.path, { force: true });
+    }
+  }
+}
+
+function resolveBrowserEngine(body = {}, profileConfig = {}) {
+  const raw = String(
+    body.browserEngine ||
+    profileConfig.browserEngine ||
+    process.env.PAA_BROWSER_ENGINE ||
+    "chrome"
+  ).trim().toLowerCase();
+  if (raw === "camoufox" || raw === "auto") return raw;
+  return "chrome";
+}
+
+function shouldTryCamoufox(browserEngine) {
+  return browserEngine === "camoufox" || browserEngine === "auto";
+}
+
+function resolveCookieSyncDomains(body = {}, profileConfig = {}) {
+  const raw = body.cookieSyncDomains ||
+    profileConfig.cookieSyncDomains ||
+    process.env.PAA_COOKIE_SYNC_DOMAINS ||
+    "";
+  const values = Array.isArray(raw) ? raw : String(raw).split(/[,\s]+/);
+  return Array.from(new Set(values
+    .map((value) => String(value || "").trim().toLowerCase())
+    .map((value) => value.replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^\.+/, ""))
+    .filter(Boolean)));
+}
+
+async function createCookieJar(body, profileName, profileConfig, domains) {
+  if (!domains.length) return null;
+
+  const browserURL = profileConfig.browserURL || process.env.BROWSER_URL || "http://127.0.0.1:9222";
+  let browser = null;
+  let temporaryPage = null;
+  try {
+    const puppeteer = require("puppeteer-core");
+    browser = await puppeteer.connect({ browserURL });
+    const pages = await browser.pages();
+    const page = pages[0] || await browser.newPage();
+    if (!pages[0]) temporaryPage = page;
+
+    const client = await page.target().createCDPSession();
+    const result = await client.send("Network.getAllCookies");
+    const cookies = (result.cookies || [])
+      .filter((cookie) => cookieAllowed(cookie, domains))
+      .map(playwrightCookie)
+      .filter(Boolean);
+
+    if (!cookies.length) {
+      return { count: 0, domains, source: browserURL };
+    }
+
+    const filePath = path.join(
+      os.tmpdir(),
+      `paa-cookies-${process.pid}-${safeProfileName(profileName)}-${crypto.randomBytes(8).toString("hex")}.json`
+    );
+    fs.writeFileSync(filePath, JSON.stringify({ version: 1, domains, cookies }), { mode: 0o600 });
+    return { path: filePath, count: cookies.length, domains, source: browserURL };
+  }
+  catch (err) {
+    return {
+      count: 0,
+      domains,
+      source: browserURL,
+      error: `Could not read allowed cookies from login browser: ${err.message || err}`
+    };
+  }
+  finally {
+    if (temporaryPage) await temporaryPage.close().catch(() => {});
+    if (browser) await browser.disconnect().catch(() => {});
+  }
+}
+
+function cookieAllowed(cookie, domains) {
+  const host = String(cookie.domain || "").toLowerCase().replace(/^\.+/, "");
+  return !!host && domains.some((domain) => host === domain || host.endsWith(`.${domain}`));
+}
+
+function playwrightCookie(cookie) {
+  if (!cookie || !cookie.name || cookie.value == null || !cookie.domain) return null;
+  const out = {
+    name: String(cookie.name),
+    value: String(cookie.value),
+    domain: String(cookie.domain),
+    path: String(cookie.path || "/"),
+    httpOnly: !!cookie.httpOnly,
+    secure: !!cookie.secure
+  };
+  if (Number.isFinite(cookie.expires) && cookie.expires > 0) {
+    out.expires = Math.floor(cookie.expires);
+  }
+  if (["Strict", "Lax", "None"].includes(cookie.sameSite)) {
+    out.sameSite = cookie.sameSite;
+  }
+  return out;
+}
+
+function cookieJarSummary(cookieJar) {
+  if (!cookieJar) return undefined;
+  return {
+    enabled: true,
+    count: cookieJar.count || 0,
+    domains: cookieJar.domains ? cookieJar.domains.length : 0,
+    source: cookieJar.source || "",
+    error: cookieJar.error || ""
+  };
+}
+
+async function runBrowserCommand(command, args, env) {
+  return await spawnJSON(command, args, {
     cwd: REPO_ROOT,
     env,
     timeoutMS: Number(process.env.PAA_JOB_TIMEOUT_MS || 600000)
   });
+}
 
+function terminalBrowserResult(result, route) {
   if (result.exitCode !== 0 && !result.json) {
-    updateJob(job, {
-      status: "failed",
-      error: result.stderr || result.stdout || `Acquisition command exited with ${result.exitCode}`
-    });
-    return;
+    return {
+      terminal: route === "chrome",
+      patch: {
+        status: "failed",
+        route,
+        browserEngine: route,
+        error: result.stderr || result.stdout || `Acquisition command exited with ${result.exitCode}`,
+        stderr: trimLog(result.stderr)
+      }
+    };
   }
 
   const data = result.json || {};
   const status = normalizeStatus(data.status || (result.exitCode === 0 ? "ok" : "failed"));
-
-  updateJob(job, {
+  const pdfPath = data.pdf_path || data.pdfPath || "";
+  const patch = {
     ...data,
     originalStatus: data.status || "",
     status,
-    pdfPath: data.pdf_path || data.pdfPath || "",
+    route: data.route || route,
+    browserEngine: data.browserEngine || route,
+    pdfPath,
     downloadDir: DOWNLOAD_DIR,
     stderr: trimLog(result.stderr)
-  });
+  };
+
+  if (status === "ok" && pdfPath && fs.existsSync(pdfPath)) {
+    return { terminal: true, patch };
+  }
+  if (["human_verification_required", "captcha_stop", "cooldown"].includes(status)) {
+    return { terminal: true, patch };
+  }
+  return { terminal: route === "chrome", patch };
+}
+
+function nonTerminalAttempt(result, route) {
+  const data = result.json || {};
+  return {
+    route,
+    status: normalizeStatus(data.status || ""),
+    exitCode: result.exitCode,
+    error: data.error || "",
+    stderr: trimLog(result.stderr)
+  };
 }
 
 async function runFastCommand(identifier, body, profileConfig) {
@@ -501,6 +681,17 @@ function browserUserDataDirFor(profile, profileConfig = {}) {
   return path.join(PROFILES_DIR, profileDir, "chrome");
 }
 
+function camoufoxUserDataDirFor(profile, profileConfig = {}) {
+  if (profileConfig.camoufoxUserDataDir) {
+    return expandPath(profileConfig.camoufoxUserDataDir);
+  }
+  if (process.env.CAMOUFOX_USER_DATA_DIR) {
+    return expandPath(process.env.CAMOUFOX_USER_DATA_DIR);
+  }
+  const profileDir = safeProfileName(profileConfig.profileDir || profile || "auto");
+  return path.join(PROFILES_DIR, profileDir, "camoufox");
+}
+
 async function startLoginProfile(profile, body) {
   const safeProfile = safeProfileName(profile);
   const profileConfig = getProfile(safeProfile);
@@ -725,6 +916,14 @@ function detectChrome() {
   return candidates.find((candidate) => fs.existsSync(candidate)) || "";
 }
 
+function detectPython() {
+  const candidates = [
+    path.join(REPO_ROOT, ".venv", "bin", "python"),
+    "python3"
+  ];
+  return candidates.find((candidate) => candidate === "python3" || fs.existsSync(candidate)) || "python3";
+}
+
 function resolverResponse(doi) {
   const safe = String(doi || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   if (!safe) return null;
@@ -745,6 +944,8 @@ async function handle(req, res) {
       status: "ok",
       service: "paper-acquisition-zotero-service",
       browserFallback: BROWSER_FALLBACK,
+      camoufoxFallback: CAMOUFOX_FALLBACK,
+      camoufoxConfigured: fs.existsSync(CAMOUFOX_FALLBACK),
       downloadDir: DOWNLOAD_DIR,
       proxyMode: resolveProxyMode(),
       proxyConfigured: resolveProxyMode() === "local" && !!resolveProxyServer(),

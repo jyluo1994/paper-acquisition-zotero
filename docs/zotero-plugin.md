@@ -45,6 +45,8 @@ Set:
 Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
 Default profile: your-local-profile
+Browser engine: camoufox
+Cookie sync domains: optional, comma-separated
 Proxy mode: profile
 Acquisition proxy: optional
 Proxy username: optional
@@ -59,6 +61,30 @@ settings from `service/profiles.json`. Use `browser-profile` for
 Chrome/ZeroOmega-managed browser routes. Use `local` when the plugin should
 inject `Acquisition proxy` from Zotero settings into the helper browser.
 Proxy username/password in Zotero settings are stored as Zotero preferences.
+
+`Browser engine` can be `camoufox`, `chrome`, or `auto`. `camoufox` and `auto`
+try the Python Camoufox backend first for background acquisition, then fall
+back to the Chrome backend if Camoufox is unavailable or does not return a PDF.
+Install Camoufox with:
+
+```bash
+pip install -U camoufox[geoip]
+python3 -m camoufox fetch
+```
+
+For a repository-local install, use `.venv`; the service automatically prefers
+`.venv/bin/python` when it exists:
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -U camoufox[geoip]
+.venv/bin/python -m camoufox fetch
+```
+
+`Cookie sync domains` is advanced and opt-in. The service copies only matching
+domain cookies from the visible login browser into a temporary per-job file,
+applies them to the background browser, and deletes the file after the job.
+Cookie values are not logged or returned to Zotero.
 
 Manual terminal startup still works:
 
@@ -206,7 +232,11 @@ authentication.
 
 ## Security Boundary
 
-The Zotero plugin must not store raw cookies, SSO tokens, or request headers. Proxy username/password are stored as normal Zotero preferences if configured. Zotero receives only:
+The Zotero plugin must not store raw cookies, SSO tokens, or request headers.
+Cookie sync, when enabled, is performed by the local service through a
+temporary allowlisted per-job file that is deleted after acquisition. Proxy
+username/password are stored as normal Zotero preferences if configured.
+Zotero receives only:
 
 - item metadata
 - job status

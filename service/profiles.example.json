@@ -8,6 +8,8 @@
       "browserUserDataDir": "~/Library/Application Support/Google/Chrome",
       "chromeProfileDirectory": "Default",
       "zeroOmegaProfile": "kokonur",
+      "browserEngine": "camoufox",
+      "cookieSyncDomains": [],
       "proxyMode": "browser-profile",
       "notes": "Uses the user's Chrome Default profile and lets ZeroOmega handle proxy routing."
     },

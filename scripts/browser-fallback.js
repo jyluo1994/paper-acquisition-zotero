@@ -21,6 +21,7 @@
  *   PAA_PROXY_SERVER / CHROME_PROXY_SERVER 仅用于本次浏览器兜底获取的代理
  *   PAA_PROXY_BYPASS_LIST / CHROME_PROXY_BYPASS_LIST Chrome 代理绕过列表
  *   PAA_PROXY_USERNAME / PAA_PROXY_PASSWORD HTTP proxy authentication
+ *   PAA_COOKIE_JAR 由本地服务生成的一次性白名单 cookie 文件
  *   CDP_PORT        远程调试端口（默认 9222）
  *   PAA_BROWSER_MODE background（默认，headless）| existing（复用已打开浏览器）| visible
  */
@@ -181,7 +182,23 @@ async function newPage(browser) {
   if (proxyAuth) {
     await page.authenticate(proxyAuth);
   }
+  await applyCookieJar(page);
   return page;
+}
+
+async function applyCookieJar(page) {
+  const jarPath = String(process.env.PAA_COOKIE_JAR || "").trim();
+  if (!jarPath) return;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(jarPath, "utf8"));
+    const cookies = Array.isArray(parsed.cookies) ? parsed.cookies : [];
+    if (!cookies.length) return;
+    await page.setCookie(...cookies);
+    console.error(`[cookies] Applied ${cookies.length} allowlisted cookies.`);
+  }
+  catch (err) {
+    console.error(`[cookies] Could not apply allowlisted cookies: ${err.message || err}`);
+  }
 }
 
 function normalizeProxyServer(value) {

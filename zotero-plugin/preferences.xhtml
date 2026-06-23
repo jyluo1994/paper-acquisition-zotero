@@ -37,6 +37,20 @@
                     preference="extensions.paperAcquisitionAntiScrape.defaultProfile"/>
       </html:div>
       <html:div class="paa-form-row">
+        <html:label for="paa-browser-engine">Browser engine</html:label>
+        <html:input id="paa-browser-engine"
+                    type="text"
+                    placeholder="camoufox, chrome, or auto"
+                    preference="extensions.paperAcquisitionAntiScrape.browserEngine"/>
+      </html:div>
+      <html:div class="paa-form-row">
+        <html:label for="paa-cookie-sync-domains">Cookie sync domains</html:label>
+        <html:input id="paa-cookie-sync-domains"
+                    type="text"
+                    placeholder="example.edu, publisher.com"
+                    preference="extensions.paperAcquisitionAntiScrape.cookieSyncDomains"/>
+      </html:div>
+      <html:div class="paa-form-row">
         <html:label for="paa-proxy-mode">Proxy mode</html:label>
         <html:input id="paa-proxy-mode"
                     type="text"
@@ -66,6 +80,7 @@
       </html:div>
       <description>
         Use profile to read proxy settings from the local service profile. Use browser-profile for Chrome/ZeroOmega-managed browser routing. Use local when Acquisition proxy should be injected from Zotero settings.
+        Cookie sync copies only allowlisted domain cookies from the visible login browser into one background acquisition job.
       </description>
       <hbox class="preferences-button-group">
         <button id="paa-test-service" label="Test service"/>

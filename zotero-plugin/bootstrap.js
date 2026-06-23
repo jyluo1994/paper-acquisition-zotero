@@ -427,6 +427,7 @@ var PaperAcquisitionAntiScrape;
         date: this.cleanField(item.getField("date")),
         mode,
         profile: profile || "auto",
+        ...this.browserPayload(),
         ...this.proxyPayload()
       };
     },
@@ -857,6 +858,16 @@ var PaperAcquisitionAntiScrape;
       return String(this.getPref("defaultProfile", DEFAULT_PROFILE) || DEFAULT_PROFILE).trim() || DEFAULT_PROFILE;
     },
 
+    getBrowserEngine() {
+      const engine = String(this.getPref("browserEngine", "camoufox") || "camoufox").trim().toLowerCase();
+      if (engine === "chrome" || engine === "auto") return engine;
+      return "camoufox";
+    },
+
+    getCookieSyncDomains() {
+      return String(this.getPref("cookieSyncDomains", "") || "").trim();
+    },
+
     getProxyServer() {
       return String(this.getPref("proxyServer", "") || "").trim();
     },
@@ -873,6 +884,17 @@ var PaperAcquisitionAntiScrape;
 
     getProxyPassword() {
       return String(this.getPref("proxyPassword", "") || "");
+    },
+
+    browserPayload() {
+      const payload = {
+        browserEngine: this.getBrowserEngine()
+      };
+      const cookieSyncDomains = this.getCookieSyncDomains();
+      if (cookieSyncDomains) {
+        payload.cookieSyncDomains = cookieSyncDomains;
+      }
+      return payload;
     },
 
     proxyPayload() {

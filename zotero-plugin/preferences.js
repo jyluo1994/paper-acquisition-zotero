@@ -52,6 +52,16 @@ var PaperAcquisitionPreferences = {
     return String(this.pref("defaultProfile", "auto") || "auto").trim();
   },
 
+  browserEngine() {
+    const engine = String(this.pref("browserEngine", "camoufox") || "camoufox").trim().toLowerCase();
+    if (engine === "chrome" || engine === "auto") return engine;
+    return "camoufox";
+  },
+
+  cookieSyncDomains() {
+    return String(this.pref("cookieSyncDomains", "") || "").trim();
+  },
+
   proxyServer() {
     return String(this.pref("proxyServer", "") || "").trim();
   },
@@ -82,7 +92,8 @@ var PaperAcquisitionPreferences = {
       ? (this.proxyServer() ? "local proxy configured" : "local proxy mode, proxy empty")
       : "browser profile proxy mode";
     const auth = mode === "local" && this.proxyUsername() ? "proxy auth configured" : "proxy auth off";
-    this.setStatus(`Service OK. Download dir: ${data.downloadDir || "unknown"}. Profiles: ${profiles}. ${proxy}. ${auth}.`);
+    const cookies = this.cookieSyncDomains() ? "cookie sync allowlist configured" : "cookie sync off";
+    this.setStatus(`Service OK. Download dir: ${data.downloadDir || "unknown"}. Profiles: ${profiles}. Engine: ${this.browserEngine()}. ${proxy}. ${auth}. ${cookies}.`);
   },
 
   async refreshLoginProfile() {
@@ -106,7 +117,14 @@ var PaperAcquisitionPreferences = {
 
   requestOptions() {
     const proxyMode = this.proxyMode();
-    const options = { proxyMode };
+    const options = {
+      proxyMode,
+      browserEngine: this.browserEngine()
+    };
+    const cookieSyncDomains = this.cookieSyncDomains();
+    if (cookieSyncDomains) {
+      options.cookieSyncDomains = cookieSyncDomains;
+    }
     if (proxyMode === "local") {
       options.proxyServer = this.proxyServer();
       options.proxyUsername = this.proxyUsername();

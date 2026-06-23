@@ -289,7 +289,9 @@ var PaperAcquisitionAntiScrape;
           const itemProgress = this.addProgressItem(progress, item, processed, visibleTotal, "正在处理");
 
           try {
-            const outcome = await this.acquireItem(item, entry.profile, entry.mode);
+            const outcome = await this.acquireItem(item, entry.profile, entry.mode, {
+              window: entry.window || progress?.window || this.getMainWindow()
+            });
             summary[outcome] = (summary[outcome] || 0) + 1;
             this.finishProgressItem(itemProgress, item, processed, visibleTotal, outcome);
           }
@@ -387,7 +389,7 @@ var PaperAcquisitionAntiScrape;
       return labels[outcome] || outcome;
     },
 
-    async acquireItem(item, profile = "auto", mode = "manual") {
+    async acquireItem(item, profile = "auto", mode = "manual", options = {}) {
       if (this.getPref("skipExistingPDF", true) && await this.hasPdfAttachment(item)) {
         return "skipped";
       }
@@ -408,7 +410,7 @@ var PaperAcquisitionAntiScrape;
       }
 
       const result = await this.pollJob(serviceURL, queued.jobId);
-      return await this.handleResult(item, result);
+      return await this.handleResult(item, result, profile, mode, options);
     },
 
     itemPayload(item, profile = "auto", mode = "manual") {
@@ -541,7 +543,7 @@ var PaperAcquisitionAntiScrape;
       return String(value).trim();
     },
 
-    async handleResult(item, result) {
+    async handleResult(item, result, profile = "auto", mode = "manual", options = {}) {
       const status = result.status || "failed";
 
       if (status === "ok") {
@@ -559,7 +561,10 @@ var PaperAcquisitionAntiScrape;
         return "acquired";
       }
 
-      if (status === "login_required") {
+      if (status === "login_required" || status === "no_institutional_access") {
+        if (await this.tryManualIntervention(item, result, profile, mode, options, "loginRequired")) {
+          return "acquired";
+        }
         await this.setOnlyStatusTag(item, "pdf:login-required");
         return "loginRequired";
       }
@@ -569,7 +574,10 @@ var PaperAcquisitionAntiScrape;
         return "cooldown";
       }
 
-      if (status === "human_verification_required" || status === "captcha_stop") {
+      if (status === "human_verification_required" || status === "captcha_stop" || status === "no_pdf_link_found") {
+        if (await this.tryManualIntervention(item, result, profile, mode, options, "captchaStop")) {
+          return "acquired";
+        }
         await this.setOnlyStatusTag(item, "pdf:captcha-stop");
         return "captchaStop";
       }
@@ -581,6 +589,69 @@ var PaperAcquisitionAntiScrape;
 
       await this.setOnlyStatusTag(item, "pdf:failed");
       return "failed";
+    },
+
+    async tryManualIntervention(item, result, profile, mode, options, fallbackOutcome) {
+      if (mode !== "manual" || options.manualRetry) return false;
+      const win = options.window || this.getMainWindow();
+      const url = this.manualURL(result, item);
+      const message = [
+        "需要人工完成网页验证、验证码、机构登录或出版商确认页。",
+        "",
+        "我会打开获取用的浏览器 profile。",
+        "请在浏览器里完成验证/登录后，回到 Zotero 点 OK 继续重试。",
+        "",
+        `URL: ${url || "profile default"}`
+      ].join("\n");
+
+      if (!this.confirm(win, "Paper Acquisition", message)) {
+        return false;
+      }
+
+      try {
+        await this.openManualIntervention(profile, url);
+      }
+      catch (err) {
+        this.alert(win, "Paper Acquisition", `Could not open manual verification browser:\n${err.message || err}`);
+        return false;
+      }
+
+      const done = this.confirm(
+        win,
+        "Paper Acquisition",
+        "完成验证码/登录/确认页后点击 OK，我会重新获取这篇 PDF。\n\n如果还没完成，点 Cancel，条目会标记为需要人工验证。"
+      );
+      if (!done) return false;
+
+      const retryOutcome = await this.acquireItem(item, profile, mode, {
+        ...options,
+        manualRetry: true
+      });
+      return retryOutcome === "acquired";
+    },
+
+    manualURL(result, item) {
+      const candidates = [
+        result.url,
+        result.article_url,
+        result.articleUrl,
+        result.pdf_url,
+        result.pdfURL,
+        this.cleanField(item.getField("url"))
+      ];
+      const doi = this.cleanField(item.getField("DOI"));
+      if (doi) candidates.push(`https://doi.org/${doi}`);
+      return candidates.find((value) => value && /^https?:\/\//i.test(String(value))) || "";
+    },
+
+    async openManualIntervention(profile, url) {
+      const serviceURL = this.getServiceURL();
+      await this.ensureServiceAvailable(serviceURL);
+      const body = {
+        ...this.proxyPayload()
+      };
+      if (url) body.loginUrl = url;
+      await this.postJSON(`${serviceURL}/api/login/${encodeURIComponent(profile || this.getDefaultProfile())}`, body);
     },
 
     async pollJob(serviceURL, jobId) {
@@ -868,6 +939,15 @@ var PaperAcquisitionAntiScrape;
       catch {
         const value = win.prompt(message, defaultValue);
         return value ? String(value).trim() : "";
+      }
+    },
+
+    confirm(win, title, message) {
+      try {
+        return Services.prompt.confirm(win, title, message);
+      }
+      catch {
+        return win.confirm(`${title}\n\n${message}`);
       }
     },
 

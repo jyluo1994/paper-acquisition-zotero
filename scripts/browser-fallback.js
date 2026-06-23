@@ -158,12 +158,21 @@ async function resolveDoi(browser, doi) {
 }
 
 async function inspectPage(page, provider) {
-  const info = { title: null, pdfUrl: null, accessMode: "unknown", institution: null, unavailable: false };
+  const info = {
+    title: null,
+    pdfUrl: null,
+    accessMode: "unknown",
+    institution: null,
+    unavailable: false,
+    humanVerification: false,
+    currentUrl: page.url()
+  };
 
   try {
     info.title = await page.title();
     const body = await page.evaluate(() => document.body?.innerText || "");
     info.unavailable = /page not found|does not exist|moved|looking for does not exist/i.test(body);
+    info.humanVerification = isHumanVerificationPage(body, info.title, info.currentUrl);
     info.accessMode = /open access/i.test(body) ? "open_access" : /access provided by/i.test(body) ? "institutional" : "unknown";
     const inst = body.match(/access provided by\s+([^\n]+)/i);
     if (inst) info.institution = inst[1].trim();
@@ -202,6 +211,25 @@ async function inspectPage(page, provider) {
   }, provider);
 
   return info;
+}
+
+function isHumanVerificationPage(body, title, url) {
+  const text = `${title || ""}\n${url || ""}\n${body || ""}`.toLowerCase();
+  return [
+    "captcha",
+    "cf-turnstile",
+    "cloudflare",
+    "checking your browser",
+    "verify you are human",
+    "are you a robot",
+    "robot check",
+    "human verification",
+    "security check",
+    "access denied",
+    "unusual traffic",
+    "suspicious traffic",
+    "automated access"
+  ].some((needle) => text.includes(needle));
 }
 
 async function downloadPdf(page, pdfUrl, dir, name) {
@@ -255,6 +283,7 @@ async function main() {
   const browser = await connectBrowser();
 
   let page = null;
+  let keepPageOpen = false;
   try {
     const articleUrl = doi ? await resolveDoi(browser, doi) : input;
     const provider = inferProvider(articleUrl);
@@ -267,15 +296,43 @@ async function main() {
     const info = await inspectPage(page, provider);
 
     if (info.unavailable) {
-      console.log(JSON.stringify({ status: "article_unavailable", title: info.title, url: articleUrl }));
+      console.log(JSON.stringify({ status: "article_unavailable", title: info.title, url: info.currentUrl || articleUrl, article_url: articleUrl }));
+      return;
+    }
+    if (info.humanVerification) {
+      keepPageOpen = true;
+      console.log(JSON.stringify({
+        status: "human_verification_required",
+        title: info.title,
+        url: info.currentUrl || articleUrl,
+        article_url: articleUrl,
+        provider,
+        reason: "The browser page appears to require manual verification."
+      }));
       return;
     }
     if (!info.pdfUrl) {
-      console.log(JSON.stringify({ status: "no_pdf_link_found", title: info.title, url: articleUrl, access_mode: info.accessMode }));
+      keepPageOpen = true;
+      console.log(JSON.stringify({
+        status: "no_pdf_link_found",
+        title: info.title,
+        url: info.currentUrl || articleUrl,
+        article_url: articleUrl,
+        access_mode: info.accessMode,
+        provider
+      }));
       return;
     }
     if (info.accessMode === "unknown") {
-      console.log(JSON.stringify({ status: "no_institutional_access", title: info.title, url: articleUrl, pdf_url: info.pdfUrl }));
+      keepPageOpen = true;
+      console.log(JSON.stringify({
+        status: "no_institutional_access",
+        title: info.title,
+        url: info.currentUrl || articleUrl,
+        article_url: articleUrl,
+        pdf_url: info.pdfUrl,
+        provider
+      }));
       return;
     }
 
@@ -303,7 +360,7 @@ async function main() {
     console.log(JSON.stringify({ status, error: err.message }));
     process.exitCode = 1;
   } finally {
-    if (page) await page.close().catch(() => {});
+    if (page && !keepPageOpen) await page.close().catch(() => {});
     await browser.disconnect().catch(() => {});
   }
 }

@@ -13,6 +13,7 @@ This repository was split out from `jyluo1994/paper-acquisition-anti-scrape` so 
 - Optional auto-acquisition for newly imported regular items
 - Optional local service auto-start from Zotero
 - Institutional profile support, including external browser profile reuse
+- Human-in-the-loop confirmation for login, CAPTCHA, and publisher verification pages
 
 The Zotero plugin does not store institutional cookies, SSO tokens, or request headers. Browser profiles and cookies stay outside Zotero. If proxy credentials are configured, they are stored as normal Zotero preferences; prefer the separate username/password fields over embedding credentials in the proxy URL.
 
@@ -102,6 +103,11 @@ stored outside Zotero under the local acquisition browser profile. Chrome
 ZeroOmega profiles cannot be imported into Zotero because Zotero cannot run
 Chrome extensions; copy the proxy host, port, username, and password into the
 plugin settings or into local service configuration instead.
+
+If acquisition hits a publisher verification page, CAPTCHA, missing PDF link,
+or institutional login wall during manual right-click acquisition, Zotero opens
+the acquisition browser profile and asks you to complete the page manually.
+After you click OK in Zotero, the same item is retried once.
 
 ## Development
 

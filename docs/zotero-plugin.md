@@ -16,6 +16,8 @@ This repository now includes a Zotero plugin MVP for Zotero 7 through 10 plus a 
 - Avoids duplicate work by skipping items that already have PDFs, already have active/queued jobs, or are tagged as already acquired/acquiring.
 - Can pause automatic acquisition while Zotero's built-in associated-file download is enabled.
 - Can optionally start the local service from a configured working directory and shell command.
+- Can pause manual acquisition for human verification, open the acquisition
+  browser profile, then retry after the user confirms completion.
 - Sends selected Zotero item metadata to `http://127.0.0.1:24372/api/acquire`.
 - Polls the local job endpoint.
 - Imports a returned local PDF path as a child attachment.
@@ -153,6 +155,17 @@ Chrome ZeroOmega data cannot be imported into Zotero because Zotero cannot run
 Chrome extensions. If a ZeroOmega node uses proxy authentication, copy the
 proxy host, port, username, and password into the plugin settings or local
 `service/profiles.json`.
+
+## Human Verification Flow
+
+Manual right-click acquisition can stop and ask for human action when the
+browser fallback detects a CAPTCHA, human verification page, institutional
+login wall, missing PDF link, or publisher confirmation page. The browser tab
+is left open when possible. Zotero then asks you to complete the page manually
+and click OK to retry the same item once.
+
+The plugin does not automate CAPTCHA solving or bypass publisher protections;
+it only provides a human-in-the-loop pause and retry.
 
 ## Automatic Acquisition
 

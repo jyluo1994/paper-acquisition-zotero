@@ -74,4 +74,8 @@ Use `Refresh login profile` to open the acquisition browser profile and log in
 to publisher, institutional, WebVPN, or SSO pages. Chrome ZeroOmega data cannot
 be imported into Zotero because Zotero cannot run Chrome extensions.
 
+During manual acquisition, publisher CAPTCHA, human verification, login walls,
+or missing PDF links can trigger a human-in-the-loop prompt. Complete the page
+in the acquisition browser, then click OK in Zotero to retry once.
+
 Automatic acquisition is disabled by default. If enabled, it waits before processing new items and checks again for existing PDF attachments, so Zotero's own associated-file download and other plugins get a chance to finish first.

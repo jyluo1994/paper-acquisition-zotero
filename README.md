@@ -59,7 +59,7 @@ Recommended settings:
 Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
 Default profile: your-local-profile
-Browser engine: camoufox
+Browser engine: chrome-first
 Cookie sync domains: optional, comma-separated
 Proxy mode: profile
 Acquisition proxy: optional
@@ -77,7 +77,7 @@ Automatic acquisition is off by default. Enable it only after manual right-click
 
 ## Camoufox
 
-Camoufox is optional. When `Browser engine` is `camoufox` or `auto`, the local service tries the Python Camoufox backend first for background acquisition. If Camoufox is not installed or does not return a PDF, the service falls back to the existing Chrome backend.
+Camoufox is optional. `Browser engine` supports `chrome-first`, `chrome`, `camoufox`, and `auto`. The recommended `chrome-first` mode tries the existing Chrome backend first, then escalates to Camoufox only when Chrome hits a likely anti-bot or browser-download failure. `auto` currently behaves like `chrome-first`; `camoufox` keeps the Camoufox-first behavior for difficult publishers.
 
 Install Camoufox following the official Python installation flow:
 

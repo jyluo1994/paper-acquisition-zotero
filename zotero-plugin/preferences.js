@@ -53,9 +53,10 @@ var PaperAcquisitionPreferences = {
   },
 
   browserEngine() {
-    const engine = String(this.pref("browserEngine", "camoufox") || "camoufox").trim().toLowerCase();
-    if (engine === "chrome" || engine === "auto") return engine;
-    return "camoufox";
+    const engine = String(this.pref("browserEngine", "chrome-first") || "chrome-first").trim().toLowerCase();
+    if (engine === "chrome" || engine === "camoufox" || engine === "chrome-first") return engine;
+    if (engine === "auto") return "chrome-first";
+    return "chrome-first";
   },
 
   cookieSyncDomains() {

@@ -859,9 +859,10 @@ var PaperAcquisitionAntiScrape;
     },
 
     getBrowserEngine() {
-      const engine = String(this.getPref("browserEngine", "camoufox") || "camoufox").trim().toLowerCase();
-      if (engine === "chrome" || engine === "auto") return engine;
-      return "camoufox";
+      const engine = String(this.getPref("browserEngine", "chrome-first") || "chrome-first").trim().toLowerCase();
+      if (engine === "chrome" || engine === "camoufox" || engine === "chrome-first") return engine;
+      if (engine === "auto") return "chrome-first";
+      return "chrome-first";
     },
 
     getCookieSyncDomains() {

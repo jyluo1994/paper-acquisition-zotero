@@ -16,7 +16,7 @@ The plugin also registers a Zotero settings pane named `Paper Acquisition`. Use 
 - local service URL
 - optional service auto-start command
 - default institutional profile
-- background browser engine (`camoufox`, `chrome`, or `auto`)
+- background browser engine (`chrome-first`, `chrome`, `camoufox`, or `auto`)
 - optional allowlisted cookie sync domains
 - progress window display
 - automatic acquisition for newly added regular items
@@ -69,9 +69,12 @@ such as ZeroOmega manages the proxy. Use `local` when the plugin should inject
 `Acquisition proxy` from Zotero settings into the helper browser. None of these
 modes changes system proxy settings.
 
-When `Browser engine` is `camoufox` or `auto`, the local service tries the
-Python Camoufox backend before the existing Chrome backend. Install it with
-`pip install -U camoufox[geoip]` and `python3 -m camoufox fetch`.
+`chrome-first` is the recommended browser engine. It tries the existing Chrome
+backend first, then escalates to Camoufox only when Chrome hits a likely
+anti-bot or browser-download failure. `auto` currently behaves like
+`chrome-first`; `camoufox` keeps the Camoufox-first behavior for difficult
+publishers. Install Camoufox with `pip install -U camoufox[geoip]` and
+`python3 -m camoufox fetch`.
 
 `Cookie sync domains` is advanced and opt-in. The local service copies only
 matching domain cookies from the visible login browser into a temporary

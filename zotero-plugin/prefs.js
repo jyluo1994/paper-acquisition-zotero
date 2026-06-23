@@ -3,7 +3,7 @@ pref("extensions.paperAcquisitionAntiScrape.autoStartService", true);
 pref("extensions.paperAcquisitionAntiScrape.serviceWorkingDirectory", "");
 pref("extensions.paperAcquisitionAntiScrape.serviceStartCommand", "npm start");
 pref("extensions.paperAcquisitionAntiScrape.defaultProfile", "auto");
-pref("extensions.paperAcquisitionAntiScrape.browserEngine", "camoufox");
+pref("extensions.paperAcquisitionAntiScrape.browserEngine", "chrome-first");
 pref("extensions.paperAcquisitionAntiScrape.cookieSyncDomains", "");
 pref("extensions.paperAcquisitionAntiScrape.proxyMode", "profile");
 pref("extensions.paperAcquisitionAntiScrape.proxyServer", "");

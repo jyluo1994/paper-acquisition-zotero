@@ -45,7 +45,7 @@ Set:
 Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
 Default profile: your-local-profile
-Browser engine: camoufox
+Browser engine: chrome-first
 Cookie sync domains: optional, comma-separated
 Proxy mode: profile
 Acquisition proxy: optional
@@ -62,9 +62,11 @@ Chrome/ZeroOmega-managed browser routes. Use `local` when the plugin should
 inject `Acquisition proxy` from Zotero settings into the helper browser.
 Proxy username/password in Zotero settings are stored as Zotero preferences.
 
-`Browser engine` can be `camoufox`, `chrome`, or `auto`. `camoufox` and `auto`
-try the Python Camoufox backend first for background acquisition, then fall
-back to the Chrome backend if Camoufox is unavailable or does not return a PDF.
+`Browser engine` can be `chrome-first`, `chrome`, `camoufox`, or `auto`.
+`chrome-first` is recommended: it tries the existing Chrome backend first, then
+escalates to Camoufox only when Chrome hits a likely anti-bot or
+browser-download failure. `auto` currently behaves like `chrome-first`;
+`camoufox` keeps the Camoufox-first behavior for difficult publishers.
 Install Camoufox with:
 
 ```bash

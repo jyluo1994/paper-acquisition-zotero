@@ -177,7 +177,31 @@ async function runAcquireJob(job, body) {
     };
 
     const attempts = [];
-    if (shouldTryCamoufox(browserEngine) && fs.existsSync(CAMOUFOX_FALLBACK)) {
+    if (browserEngine === "chrome-first") {
+      const chrome = await runBrowserCommand(process.execPath, [BROWSER_FALLBACK, identifier], env);
+      const terminal = terminalBrowserResult(chrome, "chrome");
+      if (!shouldEscalateToCamoufox(terminal.patch) || !fs.existsSync(CAMOUFOX_FALLBACK)) {
+        updateJob(job, {
+          ...terminal.patch,
+          browserEngine: "chrome",
+          cookieSync: cookieJarSummary(cookieJar)
+        });
+        return;
+      }
+      attempts.push(browserAttemptSummary(terminal.patch, chrome, "chrome"));
+
+      const camoufox = await runBrowserCommand(PYTHON_BIN, [CAMOUFOX_FALLBACK, identifier], env);
+      const camoufoxTerminal = terminalBrowserResult(camoufox, "camoufox");
+      updateJob(job, {
+        ...camoufoxTerminal.patch,
+        browserEngine: camoufoxTerminal.patch.browserEngine || "camoufox",
+        browserAttempts: attempts,
+        cookieSync: cookieJarSummary(cookieJar)
+      });
+      return;
+    }
+
+    if (browserEngine === "camoufox" && fs.existsSync(CAMOUFOX_FALLBACK)) {
       const camoufox = await runBrowserCommand(PYTHON_BIN, [CAMOUFOX_FALLBACK, identifier], env);
       const terminal = terminalBrowserResult(camoufox, "camoufox");
       if (terminal.terminal) {
@@ -212,14 +236,11 @@ function resolveBrowserEngine(body = {}, profileConfig = {}) {
     body.browserEngine ||
     profileConfig.browserEngine ||
     process.env.PAA_BROWSER_ENGINE ||
-    "chrome"
+    "chrome-first"
   ).trim().toLowerCase();
-  if (raw === "camoufox" || raw === "auto") return raw;
+  if (raw === "camoufox" || raw === "chrome") return raw;
+  if (raw === "chrome-first" || raw === "auto") return "chrome-first";
   return "chrome";
-}
-
-function shouldTryCamoufox(browserEngine) {
-  return browserEngine === "camoufox" || browserEngine === "auto";
 }
 
 function resolveCookieSyncDomains(body = {}, profileConfig = {}) {
@@ -357,6 +378,52 @@ function terminalBrowserResult(result, route) {
     return { terminal: true, patch };
   }
   return { terminal: route === "chrome", patch };
+}
+
+function shouldEscalateToCamoufox(patch = {}) {
+  const status = normalizeStatus(patch.status || patch.originalStatus || "");
+  if ([
+    "human_verification_required",
+    "captcha_stop",
+    "download_failed",
+    "no_pdf_link_found",
+    "failed"
+  ].includes(status)) {
+    return true;
+  }
+
+  const text = [
+    patch.error,
+    patch.stderr,
+    patch.reason,
+    patch.url,
+    patch.article_url,
+    patch.provider
+  ].map((value) => String(value || "").toLowerCase()).join("\n");
+
+  return [
+    "captcha",
+    "cloudflare",
+    "verify you are human",
+    "robot check",
+    "security check",
+    "unusual traffic",
+    "suspicious traffic",
+    "automated access",
+    "cpe00001",
+    "sciencedirect"
+  ].some((needle) => text.includes(needle));
+}
+
+function browserAttemptSummary(patch, result, route) {
+  return {
+    route,
+    status: normalizeStatus((patch && patch.status) || ""),
+    exitCode: result.exitCode,
+    provider: patch && patch.provider || "",
+    error: patch && patch.error || "",
+    stderr: trimLog(result.stderr)
+  };
 }
 
 function nonTerminalAttempt(result, route) {

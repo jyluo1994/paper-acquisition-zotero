@@ -81,9 +81,7 @@ async function connectBrowser() {
   // 如果指定了 CHROME_BIN，自动启动一个
   const chromeBin = process.env.CHROME_BIN;
   if (chromeBin && fs.existsSync(chromeBin)) {
-    const userDataDir = process.env.CHROME_USER_DATA_DIR
-      ? path.resolve(process.env.CHROME_USER_DATA_DIR.replace(/^~(?=$|\/)/, process.env.HOME || ""))
-      : path.join(OUTPUT, "..", ".browser-profile");
+    const userDataDir = browserUserDataDir(visibleLaunch || preferExisting);
     fs.mkdirSync(userDataDir, { recursive: true });
 
     const chromeArgs = [
@@ -121,22 +119,32 @@ async function connectBrowser() {
       return { browser, closeOnDone: true, headless: !visibleLaunch };
     }
     catch (err) {
-      if (!preferExisting) {
-        const existing = await connectExistingBrowser(proxyServer, proxyAuth);
-        if (existing) return existing;
-      }
       throw err;
     }
   }
 
-  const existing = await connectExistingBrowser(proxyServer, proxyAuth);
-  if (existing) return existing;
+  if (preferExisting) {
+    const existing = await connectExistingBrowser(proxyServer, proxyAuth);
+    if (existing) return existing;
+  }
 
   throw new Error(
     "No browser available. Start Chrome with:\n" +
     "  google-chrome --remote-debugging-port=9222 --user-data-dir=$HOME/.openclaw/browser-clone\n" +
     "Or set CHROME_BIN env var for auto-launch."
   );
+}
+
+function browserUserDataDir(useVisibleProfile) {
+  const configured = process.env.CHROME_USER_DATA_DIR
+    ? path.resolve(process.env.CHROME_USER_DATA_DIR.replace(/^~(?=$|\/)/, process.env.HOME || ""))
+    : path.join(OUTPUT, "..", ".browser-profile");
+  if (useVisibleProfile) return configured;
+
+  const background = process.env.PAA_BACKGROUND_USER_DATA_DIR
+    ? path.resolve(process.env.PAA_BACKGROUND_USER_DATA_DIR.replace(/^~(?=$|\/)/, process.env.HOME || ""))
+    : path.join(path.dirname(configured), "headless");
+  return background;
 }
 
 async function connectExistingBrowser(proxyServer, proxyAuth) {

@@ -560,6 +560,7 @@ var PaperAcquisitionAntiScrape;
           parentItemID: item.id,
           title: result.title ? `Full Text PDF - ${result.title}` : "Full Text PDF"
         });
+        await this.removeTemporaryPDF(pdfPath, result.downloadDir || result.download_dir);
         await this.setOnlyStatusTag(item, "pdf:acquired");
         return "acquired";
       }
@@ -711,6 +712,39 @@ var PaperAcquisitionAntiScrape;
       }
       item.addTag(tag);
       await item.saveTx();
+    },
+
+    async removeTemporaryPDF(pdfPath, downloadDir) {
+      const filePath = this.cleanField(pdfPath);
+      const root = this.cleanField(downloadDir);
+      if (!filePath || !root || !this.isPathInside(filePath, root)) return;
+
+      try {
+        if (typeof IOUtils !== "undefined" && IOUtils.remove) {
+          await IOUtils.remove(filePath, { ignoreAbsent: true });
+          return;
+        }
+        if (Zotero.File && Zotero.File.removeIfExists) {
+          await Zotero.File.removeIfExists(filePath);
+          return;
+        }
+        if (typeof Components !== "undefined") {
+          const localFile = Components.classes["@mozilla.org/file/local;1"]
+            .createInstance(Components.interfaces.nsIFile);
+          localFile.initWithPath(filePath);
+          if (localFile.exists()) localFile.remove(false);
+        }
+      }
+      catch (err) {
+        this.log(`Could not remove temporary PDF ${filePath}: ${err.message || err}`);
+      }
+    },
+
+    isPathInside(filePath, directory) {
+      const normalize = (value) => String(value || "").replace(/\\/g, "/").replace(/\/+$/, "");
+      const file = normalize(filePath);
+      const dir = normalize(directory);
+      return !!file && !!dir && (file === dir || file.startsWith(`${dir}/`));
     },
 
     escapeHTML(value) {

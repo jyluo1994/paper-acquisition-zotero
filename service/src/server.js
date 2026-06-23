@@ -197,6 +197,7 @@ async function runAcquireJob(job, body) {
     originalStatus: data.status || "",
     status,
     pdfPath: data.pdf_path || data.pdfPath || "",
+    downloadDir: DOWNLOAD_DIR,
     stderr: trimLog(result.stderr)
   });
 }
@@ -230,6 +231,7 @@ async function runFastCommand(identifier, body, profileConfig) {
         status: "ok",
         route: data.route || "fast-command",
         pdfPath,
+        downloadDir: DOWNLOAD_DIR,
         stderr: trimLog(result.stderr)
       }
     };

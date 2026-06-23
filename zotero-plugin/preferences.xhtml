@@ -36,6 +36,16 @@
                     type="text"
                     preference="extensions.paperAcquisitionAntiScrape.defaultProfile"/>
       </html:div>
+      <html:div class="paa-form-row">
+        <html:label for="paa-proxy-server">Acquisition proxy</html:label>
+        <html:input id="paa-proxy-server"
+                    type="text"
+                    placeholder="127.0.0.1:7890 or socks5://127.0.0.1:1080"
+                    preference="extensions.paperAcquisitionAntiScrape.proxyServer"/>
+      </html:div>
+      <description>
+        Optional. Applies only to PDF acquisition requests handled by this plugin's local service and browser fallback. Prefer a localhost proxy without embedded credentials.
+      </description>
       <hbox class="preferences-button-group">
         <button id="paa-test-service" label="Test service"/>
         <button id="paa-start-service" label="Start service"/>

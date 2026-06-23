@@ -29,7 +29,11 @@ var PaperAcquisitionPreferences = {
   },
 
   defaultProfile() {
-    return String(this.pref("defaultProfile", "pumc-kokonur-zeroomega") || "pumc-kokonur-zeroomega").trim();
+    return String(this.pref("defaultProfile", "auto") || "auto").trim();
+  },
+
+  proxyServer() {
+    return String(this.pref("proxyServer", "") || "").trim();
   },
 
   async testService() {
@@ -37,7 +41,8 @@ var PaperAcquisitionPreferences = {
     const response = await fetch(`${this.serviceURL()}/health`);
     const data = await this.parseResponse(response);
     const profiles = Array.isArray(data.profiles) ? data.profiles.join(", ") : "unknown";
-    this.setStatus(`Service OK. Download dir: ${data.downloadDir || "unknown"}. Profiles: ${profiles}`);
+    const proxy = this.proxyServer() ? "plugin proxy configured" : "plugin proxy off";
+    this.setStatus(`Service OK. Download dir: ${data.downloadDir || "unknown"}. Profiles: ${profiles}. ${proxy}.`);
   },
 
   async refreshLoginProfile() {
@@ -50,10 +55,17 @@ var PaperAcquisitionPreferences = {
     const response = await fetch(`${this.serviceURL()}/api/login/${encodeURIComponent(profile)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: "{}"
+      body: JSON.stringify(this.requestOptions())
     });
     const data = await this.parseResponse(response);
-    this.setStatus(`Opened ${data.label || data.profile || profile}. CDP: ${data.cdpURL || "unknown"}. ZeroOmega: ${data.zeroOmegaProfile || "not configured"}`);
+    const proxy = data.proxyServer ? ` Proxy: ${data.proxyServer}.` : "";
+    this.setStatus(`Opened ${data.label || data.profile || profile}. CDP: ${data.cdpURL || "unknown"}.${proxy}`);
+  },
+
+  requestOptions() {
+    return {
+      proxyServer: this.proxyServer()
+    };
   },
 
   async startService() {

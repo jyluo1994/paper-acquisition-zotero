@@ -9,7 +9,7 @@ var PaperAcquisitionAntiScrape;
   const TOOLS_MENU_ID = "paper-acquisition-anti-scrape-tools-settings";
   const TOOLS_SEPARATOR_ID = "paper-acquisition-anti-scrape-tools-separator";
   const PREF_PANE_ID = "paper-acquisition-anti-scrape-preferences";
-  const DEFAULT_PROFILE = "pumc-kokonur-zeroomega";
+  const DEFAULT_PROFILE = "auto";
   const STATUS_TAGS = [
     "pdf:acquiring",
     "pdf:acquired",
@@ -421,7 +421,8 @@ var PaperAcquisitionAntiScrape;
         publicationTitle: this.cleanField(item.getField("publicationTitle")),
         date: this.cleanField(item.getField("date")),
         mode,
-        profile: profile || "auto"
+        profile: profile || "auto",
+        proxyServer: this.getProxyServer()
       };
     },
 
@@ -514,7 +515,9 @@ var PaperAcquisitionAntiScrape;
       );
 
       const serviceURL = this.getServiceURL();
-      const body = {};
+      const body = {
+        proxyServer: this.getProxyServer()
+      };
       if (loginUrl) body.loginUrl = loginUrl;
       const result = await this.postJSON(`${serviceURL}/api/login/${encodeURIComponent(profile)}`, body);
 
@@ -526,7 +529,7 @@ var PaperAcquisitionAntiScrape;
           `Label: ${result.label || "unknown"}`,
           `Login URL: ${result.loginUrl || "unknown"}`,
           `CDP: ${result.cdpURL || "unknown"}`,
-          `ZeroOmega: ${result.zeroOmegaProfile || "not configured"}`,
+          `Proxy: ${result.proxyServer || "not configured"}`,
           `Browser profile: ${result.userDataDir || "unknown"}`
         ].join("\n")
       );
@@ -721,10 +724,14 @@ var PaperAcquisitionAntiScrape;
       }
 
       const logPath = "$HOME/.paper-acquisition/service.log";
+      const proxyServer = this.getProxyServer();
+      const envPrefix = proxyServer
+        ? `PAA_PROXY_SERVER=${this.shellQuote(proxyServer)} CHROME_PROXY_SERVER=${this.shellQuote(proxyServer)} `
+        : "";
       const script = [
         `cd ${this.shellQuote(cwd)}`,
         "mkdir -p \"$HOME/.paper-acquisition\"",
-        `nohup ${command} >> ${logPath} 2>&1 &`
+        `nohup ${envPrefix}${command} >> ${logPath} 2>&1 &`
       ].join(" && ");
 
       await Zotero.Utilities.Internal.exec(shell, ["-lc", script]);
@@ -757,6 +764,10 @@ var PaperAcquisitionAntiScrape;
 
     getDefaultProfile() {
       return String(this.getPref("defaultProfile", DEFAULT_PROFILE) || DEFAULT_PROFILE).trim() || DEFAULT_PROFILE;
+    },
+
+    getProxyServer() {
+      return String(this.getPref("proxyServer", "") || "").trim();
     },
 
     openSettings() {

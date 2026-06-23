@@ -14,7 +14,7 @@ This repository was split out from `jyluo1994/paper-acquisition-anti-scrape` so 
 - Optional local service auto-start from Zotero
 - Institutional profile support, including external browser profile reuse
 
-The Zotero plugin does not store institutional cookies, proxy passwords, SSO tokens, or request headers. Browser profiles and cookies stay outside Zotero.
+The Zotero plugin does not store institutional cookies, SSO tokens, or request headers. Browser profiles and cookies stay outside Zotero. Prefer a localhost proxy without embedded credentials; a proxy URL with `user:password@` would be stored as a normal Zotero preference.
 
 ## Install
 
@@ -56,9 +56,12 @@ Recommended settings:
 Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
 Default profile: your-local-profile
+Acquisition proxy: 127.0.0.1:7890
 ```
 
 Enable `Start the local service automatically when needed` if you want Zotero to start the helper service for you.
+
+`Acquisition proxy` is optional. Leave it empty to disable the plugin-level proxy. When set, it is passed only to this plugin's local service and browser fallback; it does not change macOS system proxy settings. Prefer a localhost proxy without embedded credentials.
 
 Automatic acquisition is off by default. Enable it only after manual right-click acquisition works. The automatic queue waits before starting and checks again for existing PDF attachments, so Zotero's built-in associated-file download and other PDF plugins get a chance to finish first.
 

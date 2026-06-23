@@ -18,6 +18,8 @@
  *   CHROME_BIN      Chrome 可执行文件路径（用于自动启动时）
  *   CHROME_USER_DATA_DIR Chrome user-data-dir（用于复用 ZeroOmega 等扩展配置）
  *   CHROME_PROFILE_DIRECTORY Chrome profile directory（例如 Default）
+ *   PAA_PROXY_SERVER / CHROME_PROXY_SERVER 仅用于本次浏览器兜底获取的代理
+ *   PAA_PROXY_BYPASS_LIST / CHROME_PROXY_BYPASS_LIST Chrome 代理绕过列表
  *   CDP_PORT        远程调试端口（默认 9222）
  */
 
@@ -52,10 +54,16 @@ function inferProvider(url) {
 }
 
 async function connectBrowser() {
+  const proxyServer = normalizeProxyServer(process.env.PAA_PROXY_SERVER || process.env.CHROME_PROXY_SERVER || "");
+  const proxyBypassList = String(process.env.PAA_PROXY_BYPASS_LIST || process.env.CHROME_PROXY_BYPASS_LIST || "").trim();
+
   // 先尝试连接已有浏览器
   try {
     const browser = await puppeteer.connect({ browserURL: BROWSER_URL });
     console.error(`[connect] Connected to existing browser at ${BROWSER_URL}`);
+    if (proxyServer) {
+      console.error("[connect] Proxy setting is only applied when launching a new browser.");
+    }
     return browser;
   } catch {
     console.error(`[connect] No browser at ${BROWSER_URL}, trying to launch...`);
@@ -79,6 +87,12 @@ async function connectBrowser() {
     if (process.env.CHROME_PROFILE_DIRECTORY) {
       chromeArgs.push(`--profile-directory=${process.env.CHROME_PROFILE_DIRECTORY}`);
     }
+    if (proxyServer) {
+      chromeArgs.push(`--proxy-server=${proxyServer}`);
+    }
+    if (proxyBypassList) {
+      chromeArgs.push(`--proxy-bypass-list=${proxyBypassList}`);
+    }
     chromeArgs.push("--new-window", "about:blank");
     const child = spawn(chromeBin, chromeArgs, { detached: true, stdio: "ignore" });
     child.unref();
@@ -98,6 +112,17 @@ async function connectBrowser() {
     "  google-chrome --remote-debugging-port=9222 --user-data-dir=$HOME/.openclaw/browser-clone\n" +
     "Or set CHROME_BIN env var for auto-launch."
   );
+}
+
+function normalizeProxyServer(value) {
+  const proxy = String(value || "").trim();
+  if (!proxy) return "";
+  if (/^(https?|socks4|socks5|socks5h):\/\//i.test(proxy)) return proxy;
+  if (/^[a-z][a-z0-9+.-]*=/i.test(proxy) || proxy.includes(";")) return proxy;
+  if (/^\[[^\]]+\]:\d+$/.test(proxy) || /^[^:/\s]+:\d+$/.test(proxy)) {
+    return `http://${proxy}`;
+  }
+  return proxy;
 }
 
 async function resolveDoi(browser, doi) {

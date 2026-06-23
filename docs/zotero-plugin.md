@@ -42,9 +42,15 @@ Set:
 ```text
 Service directory: /path/to/paper-acquisition-zotero
 Start command: npm start
+Default profile: your-local-profile
+Acquisition proxy: 127.0.0.1:7890
 ```
 
 Then click `Start service`, or enable `Start the local service automatically when needed`.
+
+`Acquisition proxy` is optional. It is scoped to this plugin's PDF acquisition
+flow and does not change system proxy settings. Prefer a localhost proxy without
+embedded credentials.
 
 Manual terminal startup still works:
 
@@ -143,9 +149,26 @@ Automatic acquisition is off by default. Enable it in the plugin settings only a
 
 The automatic flow listens for newly added regular Zotero items, waits for the configured delay, then checks whether a PDF attachment already exists before enqueueing a job. This delay helps avoid conflicts with Zotero's built-in associated-file download or other PDF-acquisition plugins. If `Pause automatic acquisition while Zotero's built-in associated-file download is enabled` is on and Zotero's `downloadAssociatedFiles` preference is enabled, automatic acquisition stays paused.
 
+## Plugin-Level Proxy
+
+The `Acquisition proxy` setting is optional and scoped to this plugin's PDF
+acquisition flow. It is sent with `/api/acquire` and `/api/login` requests, and
+is also exported as `PAA_PROXY_SERVER` when Zotero auto-starts the service.
+
+Accepted examples:
+
+```text
+127.0.0.1:7890
+http://127.0.0.1:7890
+socks5://127.0.0.1:1080
+```
+
+The service converts bare `host:port` values to `http://host:port` before
+launching Chrome. This does not change system proxy settings.
+
 ## Security Boundary
 
-The Zotero plugin must not store raw cookies, proxy passwords, SSO tokens, or request headers. Zotero receives only:
+The Zotero plugin must not store raw cookies, SSO tokens, or request headers. Prefer a localhost proxy without embedded credentials; a proxy URL with `user:password@` would be stored as a normal Zotero preference. Zotero receives only:
 
 - item metadata
 - job status

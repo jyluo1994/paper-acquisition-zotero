@@ -61,6 +61,11 @@ The default service URL is:
 http://127.0.0.1:24372
 ```
 
+The `Acquisition proxy` setting is optional. Leave it empty to disable it, or
+set a local proxy such as `127.0.0.1:7890`. It applies only to this plugin's PDF
+acquisition flow and does not change system proxy settings. Prefer a localhost
+proxy without embedded credentials.
+
 Institution-specific profile names, login URLs, proxy notes, and browser
 profile details should live in the local service configuration rather than in
 public docs.

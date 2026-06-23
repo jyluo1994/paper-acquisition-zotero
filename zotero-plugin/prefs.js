@@ -2,7 +2,8 @@ pref("extensions.paperAcquisitionAntiScrape.serviceURL", "http://127.0.0.1:24372
 pref("extensions.paperAcquisitionAntiScrape.autoStartService", false);
 pref("extensions.paperAcquisitionAntiScrape.serviceWorkingDirectory", "");
 pref("extensions.paperAcquisitionAntiScrape.serviceStartCommand", "npm start");
-pref("extensions.paperAcquisitionAntiScrape.defaultProfile", "pumc-kokonur-zeroomega");
+pref("extensions.paperAcquisitionAntiScrape.defaultProfile", "auto");
+pref("extensions.paperAcquisitionAntiScrape.proxyServer", "");
 pref("extensions.paperAcquisitionAntiScrape.skipExistingPDF", true);
 pref("extensions.paperAcquisitionAntiScrape.showProgressWindow", true);
 pref("extensions.paperAcquisitionAntiScrape.autoAcquireOnNewItems", false);

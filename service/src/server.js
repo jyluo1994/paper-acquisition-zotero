@@ -95,6 +95,8 @@ function updateJob(job, patch) {
 async function runAcquireJob(job, body) {
   updateJob(job, { status: "running" });
   const profileConfig = getProfile(body.profile || "auto");
+  const proxyServer = resolveProxyServer(body, profileConfig);
+  const proxyBypassList = resolveProxyBypassList(body, profileConfig);
 
   const identifier = cleanIdentifier(body);
   if (!identifier) {
@@ -116,7 +118,7 @@ async function runAcquireJob(job, body) {
   fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
 
   if (FAST_COMMAND) {
-    const fast = await runFastCommand(identifier, body);
+    const fast = await runFastCommand(identifier, body, profileConfig);
     if (fast.terminal) {
       updateJob(job, fast.patch);
       return;
@@ -133,7 +135,8 @@ async function runAcquireJob(job, body) {
     CDP_PORT: String(profileConfig.cdpPort || process.env.CDP_PORT || 9222),
     CHROME_BIN: process.env.CHROME_BIN || detectChrome(),
     CHROME_USER_DATA_DIR: expandPath(profileConfig.browserUserDataDir || process.env.CHROME_USER_DATA_DIR || ""),
-    CHROME_PROFILE_DIRECTORY: profileConfig.chromeProfileDirectory || process.env.CHROME_PROFILE_DIRECTORY || ""
+    CHROME_PROFILE_DIRECTORY: profileConfig.chromeProfileDirectory || process.env.CHROME_PROFILE_DIRECTORY || "",
+    ...proxyEnv(proxyServer, proxyBypassList)
   };
 
   const result = await spawnJSON(process.execPath, [BROWSER_FALLBACK, identifier], {
@@ -162,14 +165,17 @@ async function runAcquireJob(job, body) {
   });
 }
 
-async function runFastCommand(identifier, body) {
+async function runFastCommand(identifier, body, profileConfig) {
   const command = renderFastCommand(FAST_COMMAND, identifier, body);
+  const proxyServer = resolveProxyServer(body, profileConfig);
+  const proxyBypassList = resolveProxyBypassList(body, profileConfig);
   const result = await spawnJSON("/bin/sh", ["-lc", command], {
     cwd: REPO_ROOT,
     env: {
       ...process.env,
       PAA_IDENTIFIER: identifier,
-      PAA_DOWNLOAD_DIR: DOWNLOAD_DIR
+      PAA_DOWNLOAD_DIR: DOWNLOAD_DIR,
+      ...proxyEnv(proxyServer, proxyBypassList)
     },
     timeoutMS: Number(process.env.PAA_FAST_TIMEOUT_MS || 180000)
   });
@@ -324,6 +330,85 @@ function getProfile(profile) {
   return PROFILE_CONFIG[safeProfileName(profile)] || {};
 }
 
+function resolveProxyServer(body = {}, profileConfig = {}) {
+  if (Object.prototype.hasOwnProperty.call(body, "proxyServer")) {
+    return normalizeProxyServer(body.proxyServer);
+  }
+  return normalizeProxyServer(
+    profileConfig.proxyServer ||
+    process.env.PAA_PROXY_SERVER ||
+    process.env.CHROME_PROXY_SERVER ||
+    ""
+  );
+}
+
+function resolveProxyBypassList(body = {}, profileConfig = {}) {
+  return String(
+    body.proxyBypassList ||
+    profileConfig.proxyBypassList ||
+    process.env.PAA_PROXY_BYPASS_LIST ||
+    process.env.CHROME_PROXY_BYPASS_LIST ||
+    ""
+  ).trim();
+}
+
+function normalizeProxyServer(value) {
+  const proxy = String(value || "").trim();
+  if (!proxy) return "";
+  if (/^(https?|socks4|socks5|socks5h):\/\//i.test(proxy)) return proxy;
+  if (/^[a-z][a-z0-9+.-]*=/i.test(proxy) || proxy.includes(";")) return proxy;
+  if (/^\[[^\]]+\]:\d+$/.test(proxy) || /^[^:/\s]+:\d+$/.test(proxy)) {
+    return `http://${proxy}`;
+  }
+  return proxy;
+}
+
+function proxyEnv(proxyServer, proxyBypassList = "") {
+  if (!proxyServer) return {};
+  const env = {
+    PAA_PROXY_SERVER: proxyServer,
+    CHROME_PROXY_SERVER: proxyServer
+  };
+  if (proxyBypassList) {
+    env.PAA_PROXY_BYPASS_LIST = proxyBypassList;
+    env.CHROME_PROXY_BYPASS_LIST = proxyBypassList;
+  }
+  if (/^(https?|socks4|socks5|socks5h):\/\//i.test(proxyServer)) {
+    env.HTTP_PROXY = proxyServer;
+    env.HTTPS_PROXY = proxyServer;
+    env.ALL_PROXY = proxyServer;
+  }
+  return env;
+}
+
+function maskProxyServer(proxyServer) {
+  if (!proxyServer) return "";
+  const masked = String(proxyServer).replace(/([a-z][a-z0-9+.-]*:\/\/)([^/@;:\s]+):([^/@;\s]+)@/gi, "$1***:***@");
+  try {
+    const url = new URL(masked);
+    if (url.username || url.password) {
+      url.username = url.username ? "***" : "";
+      url.password = url.password ? "***" : "";
+      return url.toString();
+    }
+  }
+  catch {
+    // Chrome proxy mapping strings are not always URLs.
+  }
+  return masked;
+}
+
+function sanitizeProfiles(profiles) {
+  const out = {};
+  for (const [name, config] of Object.entries(profiles || {})) {
+    out[name] = { ...config };
+    if (out[name].proxyServer) {
+      out[name].proxyServer = maskProxyServer(normalizeProxyServer(out[name].proxyServer));
+    }
+  }
+  return out;
+}
+
 function expandPath(value) {
   if (!value) return "";
   return String(value)
@@ -348,6 +433,8 @@ async function startLoginProfile(profile, body) {
 
   const port = Number(body.cdpPort || profileConfig.cdpPort || process.env.CDP_PORT || 9222);
   const startURL = body.loginUrl || profileConfig.loginUrl || "about:blank";
+  const proxyServer = resolveProxyServer(body, profileConfig);
+  const proxyBypassList = resolveProxyBypassList(body, profileConfig);
   const chromeArgs = [
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
@@ -356,6 +443,12 @@ async function startLoginProfile(profile, body) {
   ];
   if (profileConfig.chromeProfileDirectory) {
     chromeArgs.push(`--profile-directory=${profileConfig.chromeProfileDirectory}`);
+  }
+  if (proxyServer) {
+    chromeArgs.push(`--proxy-server=${proxyServer}`);
+  }
+  if (proxyBypassList) {
+    chromeArgs.push(`--proxy-bypass-list=${proxyBypassList}`);
   }
   chromeArgs.push("--new-window", startURL);
 
@@ -373,7 +466,8 @@ async function startLoginProfile(profile, body) {
     userDataDir,
     loginUrl: startURL,
     chromeProfileDirectory: profileConfig.chromeProfileDirectory || "",
-    zeroOmegaProfile: profileConfig.zeroOmegaProfile || ""
+    zeroOmegaProfile: profileConfig.zeroOmegaProfile || "",
+    proxyServer: maskProxyServer(proxyServer)
   };
 }
 
@@ -409,6 +503,7 @@ async function handle(req, res) {
       service: "paper-acquisition-zotero-service",
       browserFallback: BROWSER_FALLBACK,
       downloadDir: DOWNLOAD_DIR,
+      proxyConfigured: !!resolveProxyServer(),
       profiles: Object.keys(PROFILE_CONFIG)
     });
     return;
@@ -417,7 +512,7 @@ async function handle(req, res) {
   if (req.method === "GET" && url.pathname === "/api/profiles") {
     json(res, 200, {
       status: "ok",
-      profiles: PROFILE_CONFIG
+      profiles: sanitizeProfiles(PROFILE_CONFIG)
     });
     return;
   }

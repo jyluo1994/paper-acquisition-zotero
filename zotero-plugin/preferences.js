@@ -3,11 +3,31 @@ var PaperAcquisitionPreferences = {
 
   init() {
     if (this.initialized) return;
+    if (!this.$("paa-test-service") || !this.$("paa-start-service") || !this.$("paa-refresh-login")) {
+      setTimeout(() => this.init(), 100);
+      return;
+    }
     this.initialized = true;
-    this.$("paa-test-service").addEventListener("command", () => this.testService());
-    this.$("paa-start-service").addEventListener("command", () => this.startService());
-    this.$("paa-refresh-login").addEventListener("command", () => this.refreshLoginProfile());
+    this.bindButton("paa-test-service", () => this.testService());
+    this.bindButton("paa-start-service", () => this.startService());
+    this.bindButton("paa-refresh-login", () => this.refreshLoginProfile());
     this.testService().catch((err) => this.setStatus(`Service check failed: ${err.message || err}`, true));
+  },
+
+  bindButton(id, handler) {
+    const node = this.$(id);
+    if (!node) return;
+    let lastRun = 0;
+    const run = () => {
+      const now = Date.now();
+      if (now - lastRun < 250) return;
+      lastRun = now;
+      Promise.resolve()
+        .then(handler)
+        .catch((err) => this.setStatus(`Action failed: ${err.message || err}`, true));
+    };
+    node.addEventListener("command", run);
+    node.addEventListener("click", run);
   },
 
   $(id) {
@@ -120,7 +140,24 @@ var PaperAcquisitionPreferences = {
 
   setStatus(message, isError = false) {
     const node = this.$("paa-service-status");
+    if (!node) return;
     node.textContent = message;
     node.style.color = isError ? "var(--accent-red, #b00020)" : "";
   }
 };
+
+(function () {
+  const init = () => PaperAcquisitionPreferences.init();
+  try {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", init, { once: true });
+    }
+    else {
+      setTimeout(init, 0);
+    }
+    window.addEventListener("load", init, { once: true });
+  }
+  catch {
+    setTimeout(init, 0);
+  }
+})();

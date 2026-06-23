@@ -731,7 +731,7 @@ var PaperAcquisitionAntiScrape;
       const script = [
         `cd ${this.shellQuote(cwd)}`,
         "mkdir -p \"$HOME/.paper-acquisition\"",
-        `nohup ${envPrefix}${command} >> ${logPath} 2>&1 &`
+        `${envPrefix}nohup ${command} >> ${logPath} 2>&1 &`
       ].join(" && ");
 
       await Zotero.Utilities.Internal.exec(shell, ["-lc", script]);
